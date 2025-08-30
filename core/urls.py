@@ -16,13 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.http import JsonResponse
-
-def test_view(request):
-    return JsonResponse({"message": "Test view works!"})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/test/', test_view, name='test'),
     path('api/', include('video.api.urls')),
 ]

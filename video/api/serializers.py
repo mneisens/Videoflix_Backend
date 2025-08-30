@@ -30,7 +30,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
-            is_active=False 
+            is_active=False
         )
         return user
 
@@ -39,3 +39,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'email')
         read_only_fields = ('id',)
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
