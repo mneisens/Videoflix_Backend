@@ -29,3 +29,29 @@ def send_activation_email(user, request):
         html_message=html_message,
         fail_silently=False,
     )
+
+def send_password_reset_email(user, request):
+    """
+    Sendet eine Passwort-Reset-E-Mail an den Benutzer
+    """
+    # Passwort-Reset-URL erstellen
+    reset_url = f"{request.scheme}://{request.get_host()}/api/password_confirm/{user.id}/{user.password_reset_token}/"
+    
+    # HTML-E-Mail-Template rendern
+    html_message = render_to_string('video/password_reset_email.html', {
+        'user': user,
+        'reset_url': reset_url,
+    })
+    
+    # Plain-Text-Version erstellen
+    plain_message = strip_tags(html_message)
+    
+    # E-Mail senden
+    send_mail(
+        subject='Videoflix - Passwort zurücksetzen',
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL or 'noreply@videoflix.com',
+        recipient_list=[user.email],
+        html_message=html_message,
+        fail_silently=False,
+    )

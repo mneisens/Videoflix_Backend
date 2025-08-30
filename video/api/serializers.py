@@ -1,28 +1,26 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 
 User = get_user_model()
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
     confirmed_password = serializers.CharField(write_only=True)
     
     class Meta:
         model = User
-        fields = ('email', 'password', 'confirmed_password')
+        fields = ['email', 'password', 'confirmed_password']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
     
-    def validate(self, attrs):
-        if attrs['password'] != attrs['confirmed_password']:
-            raise serializers.ValidationError({
-                "confirmed_password": "Die Passwörter stimmen nicht überein."
-            })
-        return attrs
+    def validate(self, data):
+        if data['password'] != data['confirmed_password']:
+            raise serializers.ValidationError("Passwörter stimmen nicht überein.")
+        return data
     
-    def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Ein Benutzer mit dieser E-Mail-Adresse existiert bereits.")
+    def validate_password(self, value):
+        validate_password(value)
         return value
     
     def create(self, validated_data):
@@ -37,9 +35,31 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email')
-        read_only_fields = ('id',)
+        fields = ['id', 'email']
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+
+class PasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+    def validate_email(self, value):
+        try:
+            User.objects.get(email=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Kein Benutzer mit dieser E-Mail-Adresse gefunden.")
+        return value
+
+class PasswordConfirmSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+    
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwörter stimmen nicht überein.")
+        return data
+    
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value

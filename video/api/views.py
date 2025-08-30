@@ -3,8 +3,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserRegistrationSerializer, UserSerializer, LoginSerializer
-from ..services import send_activation_email
+from .serializers import UserRegistrationSerializer, UserSerializer, LoginSerializer, PasswordResetSerializer, PasswordConfirmSerializer
+from ..services import send_activation_email, send_password_reset_email
 from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -234,4 +234,78 @@ class TokenRefreshView(APIView):
         except Exception as e:
             return Response({
                 'error': 'Fehler beim Token-Refresh.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class PasswordResetView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = PasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data['email']
+        user = User.objects.get(email=email)
+        
+        # Passwort-Reset-Token generieren
+        reset_token = user.generate_password_reset_token()
+        
+        # E-Mail senden
+        try:
+            send_password_reset_email(user, request)
+        except Exception as e:
+            return Response({
+                'error': 'Fehler beim Versenden der E-Mail. Bitte versuchen Sie es erneut.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'detail': 'An email has been sent to reset your password.'
+        }, status=status.HTTP_200_OK)
+
+class PasswordConfirmView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request, uidb64, token):
+        serializer = PasswordConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            user_id = int(uidb64)
+            
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Benutzer nicht gefunden.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if str(user.password_reset_token) != token:
+                return Response({
+                    'error': 'Ungültiger Passwort-Reset-Token.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if user.is_password_reset_token_expired():
+                return Response({
+                    'error': 'Passwort-Reset-Token ist abgelaufen. Bitte fordern Sie einen neuen an.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Neues Passwort setzen
+            new_password = serializer.validated_data['new_password']
+            user.set_password(new_password)
+            
+            # Token löschen
+            user.clear_password_reset_token()
+            
+            user.save()
+            
+            return Response({
+                'detail': 'Your Password has been successfully reset.'
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError:
+            return Response({
+                'error': 'Ungültige Benutzer-ID.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'error': 'Fehler bei der Passwort-Änderung.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

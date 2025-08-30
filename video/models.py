@@ -32,6 +32,10 @@ class CustomUser(AbstractUser):
     activation_token = models.UUIDField(default=uuid.uuid4, editable=False)
     activation_token_created = models.DateTimeField(default=timezone.now)
     
+    # Passwort-Reset-Felder
+    password_reset_token = models.UUIDField(null=True, blank=True, editable=False)
+    password_reset_token_created = models.DateTimeField(null=True, blank=True)
+    
     objects = CustomUserManager()
     
     USERNAME_FIELD = 'email'
@@ -50,3 +54,22 @@ class CustomUser(AbstractUser):
         self.activation_token_created = timezone.now()
         self.save()
         return self.activation_token
+    
+    def generate_password_reset_token(self):
+        """Generiert einen neuen Passwort-Reset-Token"""
+        self.password_reset_token = uuid.uuid4()
+        self.password_reset_token_created = timezone.now()
+        self.save()
+        return self.password_reset_token
+    
+    def is_password_reset_token_expired(self):
+        """Prüft ob der Passwort-Reset-Token abgelaufen ist (1 Stunde)"""
+        if not self.password_reset_token_created:
+            return True
+        return timezone.now() > self.password_reset_token_created + timezone.timedelta(hours=1)
+    
+    def clear_password_reset_token(self):
+        """Löscht den Passwort-Reset-Token"""
+        self.password_reset_token = None
+        self.password_reset_token_created = None
+        self.save()
