@@ -181,13 +181,14 @@ SIMPLE_JWT = {
 CORS_ALLOW_ALL_ORIGINS = True  # Für Entwicklung - in Produktion spezifische Domains angeben
 CORS_ALLOW_CREDENTIALS = True
 
-# Email Configuration (für Entwicklung)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = 'localhost'
-EMAIL_PORT = 1025
-EMAIL_USE_TLS = False
-EMAIL_HOST_USER = ''
-EMAIL_HOST_PASSWORD = ''
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = 'developertest181@gmail.com'
+EMAIL_HOST_PASSWORD = 'qqbofjugcyzysoqf'
 DEFAULT_FROM_EMAIL = 'noreply@videoflix.com'
 
 # Custom User Model

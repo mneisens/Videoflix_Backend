@@ -245,11 +245,8 @@ class PasswordResetView(APIView):
         
         email = serializer.validated_data['email']
         user = User.objects.get(email=email)
-        
-        # Passwort-Reset-Token generieren
         reset_token = user.generate_password_reset_token()
         
-        # E-Mail senden
         try:
             send_password_reset_email(user, request)
         except Exception as e:
@@ -287,12 +284,11 @@ class PasswordConfirmView(APIView):
                 return Response({
                     'error': 'Passwort-Reset-Token ist abgelaufen. Bitte fordern Sie einen neuen an.'
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Neues Passwort setzen
+          
             new_password = serializer.validated_data['new_password']
             user.set_password(new_password)
             
-            # Token löschen
+       
             user.clear_password_reset_token()
             
             user.save()
