@@ -29,25 +29,35 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        
         try:
-            send_activation_email(user, request)
+            from django.middleware.csrf import get_token
+            get_token(request)
+            
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+            
+            try:
+                send_activation_email(user, request)
+            except Exception as e:
+                user.delete()
+                return Response({
+                    'error': 'Fehler beim Versenden der Aktivierungs-E-Mail. Bitte versuchen Sie es erneut.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            user_data = UserSerializer(user).data
+            response_data = {
+                'user': user_data,
+                'token': str(user.activation_token),
+                'message': 'Registrierung erfolgreich! Bitte überprüfen Sie Ihre E-Mail.'
+            }
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
+            
         except Exception as e:
-            user.delete()
             return Response({
-                'error': 'Fehler beim Versenden der Aktivierungs-E-Mail. Bitte versuchen Sie es erneut.'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        user_data = UserSerializer(user).data
-        response_data = {
-            'user': user_data,
-            'token': str(user.activation_token)
-        }
-        
-        return Response(response_data, status=status.HTTP_201_CREATED)
+                'error': f'Registrierungsfehler: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class ActivateAccountView(APIView):
     permission_classes = [AllowAny]
@@ -74,16 +84,25 @@ class ActivateAccountView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             if user.is_active:
-                return Response({
-                    'message': 'Konto ist bereits aktiviert.'
-                }, status=status.HTTP_200_OK)
+                frontend_url = "http://localhost:5500"
+                if request.get_host().startswith('127.0.0.1'):
+                    frontend_url = "http://127.0.0.1:5500"
+                
+                from django.http import HttpResponseRedirect
+                return HttpResponseRedirect(f"{frontend_url}/pages/auth/login.html?message=already_activated")
             
+    
             user.is_active = True
+            user.clear_activation_token() 
             user.save()
             
-            return Response({
-                'message': 'Account successfully activated.'
-            }, status=status.HTTP_200_OK)
+
+            frontend_url = "http://localhost:5500"
+            if request.get_host().startswith('127.0.0.1'):
+                frontend_url = "http://127.0.0.1:5500"
+            
+            from django.http import HttpResponseRedirect
+            return HttpResponseRedirect(f"{frontend_url}/pages/auth/login.html?message=activation_success")
             
         except ValueError:
             return Response({
@@ -98,55 +117,61 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        email = serializer.validated_data['email']
-        password = serializer.validated_data['password']
-        
-        user = authenticate(request, email=email, password=password)
-        
-        if user is None:
+        try:
+            serializer = LoginSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            email = serializer.validated_data['email']
+            password = serializer.validated_data['password']
+            
+            user = authenticate(request, email=email, password=password)
+            
+            if user is None:
+                return Response({
+                    'error': 'Ungültige Anmeldedaten.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            if not user.is_active:
+                return Response({
+                    'error': 'Konto ist nicht aktiviert. Bitte aktivieren Sie Ihr Konto zuerst.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            refresh = RefreshToken.for_user(user)
+            
+            response = Response({
+                'detail': 'Login successful',
+                'user': {
+                    'id': user.id,
+                    'email': user.email
+                },
+                'access_token': str(refresh.access_token),
+                'refresh_token': str(refresh) 
+            }, status=status.HTTP_200_OK)
+            
+            response.set_cookie(
+                'access_token',
+                str(refresh.access_token),
+                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+                httponly=True,
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']
+            )
+            
+            response.set_cookie(
+                'refresh_token',
+                str(refresh),
+                max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+                httponly=True,
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']
+            )
+            
+            return response
+            
+        except Exception as e:
             return Response({
-                'error': 'Ungültige Anmeldedaten.'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        if not user.is_active:
-            return Response({
-                'error': 'Konto ist nicht aktiviert. Bitte aktivieren Sie Ihr Konto zuerst.'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        refresh = RefreshToken.for_user(user)
-        
-        response = Response({
-            'detail': 'Login successful',
-            'user': {
-                'id': user.id,
-                'username': user.email
-            },
-            'access_token': str(refresh.access_token),
-            'refresh_token': str(refresh) 
-        }, status=status.HTTP_200_OK)
-        
-        response.set_cookie(
-            'access_token',
-            str(refresh.access_token),
-            max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-            httponly=True,
-            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']
-        )
-        
-        response.set_cookie(
-            'refresh_token',
-            str(refresh),
-            max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
-            httponly=True,
-            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']
-        )
-        
-        return response
+                'error': f'Login-Fehler: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
@@ -228,12 +253,12 @@ class PasswordResetView(APIView):
         serializer.is_valid(raise_exception=True)
         
         email = serializer.validated_data['email']
-        user = User.objects.get(email=email) # User is guaranteed to exist due to serializer validation
+        user = User.objects.get(email=email)
         
-        # Passwort-Reset-Token generieren
+
         reset_token = user.generate_password_reset_token()
         
-        # E-Mail senden
+
         try:
             send_password_reset_email(user, request)
         except Exception as e:
@@ -282,7 +307,7 @@ class PasswordConfirmView(APIView):
             user.save()
             
             return Response({
-                'detail': 'Your Password has been successfully reset.'
+                'message': 'Passwort erfolgreich geändert!'
             }, status=status.HTTP_200_OK)
             
         except ValueError:
@@ -298,7 +323,7 @@ class VideoListView(generics.ListAPIView):
     """View für die Video-Liste"""
     serializer_class = VideoSerializer
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]  # Unterstützt sowohl Cookies als auch Authorization Header
+    authentication_classes = [JWTAuthentication] 
     
     def get_queryset(self):
         """Gibt nur aktive Videos zurück"""
@@ -312,18 +337,14 @@ class HLSMasterPlaylistView(APIView):
     def get(self, request, movie_id, resolution):
         """Gibt die HLS Master Playlist für ein Video zurück"""
         try:
-            # Video finden
             video = get_object_or_404(Video, id=movie_id, is_active=True)
-            
-            # Verfügbare Auflösungen (in der Praxis würden diese aus der Datenbank kommen)
             available_resolutions = ['1080p', '720p', '480p', '360p']
             
             if resolution not in available_resolutions:
                 return Response({
                     'error': f'Auflösung {resolution} ist nicht verfügbar. Verfügbare Auflösungen: {", ".join(available_resolutions)}'
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # HLS Master Playlist generieren
+
             playlist_content = f"""#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2"
@@ -382,3 +403,26 @@ class HLSVideoSegmentView(APIView):
             return Response({
                 'error': f'Fehler beim Laden des Video-Segments: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class DebugView(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        """Debug-View um zu sehen, was das Frontend sendet"""
+        return Response({
+            'received_data': request.data,
+            'headers': dict(request.headers),
+            'method': request.method,
+            'content_type': request.content_type,
+        }, status=status.HTTP_200_OK)
+
+class CSRFTokenView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Gibt einen CSRF-Token zurück"""
+        from django.middleware.csrf import get_token
+        get_token(request)
+        return Response({
+            'csrf_token': request.META.get('CSRF_COOKIE', ''),
+        }, status=status.HTTP_200_OK)

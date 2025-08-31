@@ -26,7 +26,17 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         confirmed_password = validated_data.pop('confirmed_password')
+        email = validated_data['email']
+        username = email.split('@')[0]
+        
+        base_username = username
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{base_username}{counter}"
+            counter += 1
+        
         user = User.objects.create_user(
+            username=username,
             email=validated_data['email'],
             password=validated_data['password'],
             is_active=False

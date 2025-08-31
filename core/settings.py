@@ -49,6 +49,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',  # Stelle sicher, dass CSRF aktiviert ist
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -177,9 +178,60 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_SAMESITE': 'Lax',
 }
 
-# CORS Settings
-CORS_ALLOW_ALL_ORIGINS = True  # Für Entwicklung - in Produktion spezifische Domains angeben
+# CORS Settings - Verbesserte Konfiguration
+CORS_ALLOW_ALL_ORIGINS = False  # Sicherer für Produktion
 CORS_ALLOW_CREDENTIALS = True
+
+# Spezifische Origins für Frontend auf Port 5500
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Zusätzliche CORS-Einstellungen für bessere Frontend-Integration
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Zusätzliche CORS-Einstellungen für Cookies
+CORS_EXPOSE_HEADERS = [
+    'set-cookie',
+]
+
+# CSRF-Einstellungen für Frontend-Integration
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+]
+
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False  # Erlaubt JavaScript-Zugriff
+SESSION_COOKIE_HTTPONLY = True
 
 # Email Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -190,6 +242,11 @@ EMAIL_USE_SSL = False
 EMAIL_HOST_USER = 'developertest181@gmail.com'
 EMAIL_HOST_PASSWORD = 'qqbofjugcyzysoqf'
 DEFAULT_FROM_EMAIL = 'noreply@videoflix.com'
+
+# E-Mail-Einstellungen für Entwicklung
+# if DEBUG:
+#     # Für Entwicklung: E-Mails in Konsole ausgeben
+#     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Custom User Model
 AUTH_USER_MODEL = 'video.CustomUser'

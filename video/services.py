@@ -8,19 +8,14 @@ def send_activation_email(user, request):
     """
     Sendet eine Aktivierungs-E-Mail an den Benutzer
     """
-    # Aktivierungs-URL erstellen
     activation_url = f"{request.scheme}://{request.get_host()}/api/activate/{user.id}/{user.activation_token}/"
     
-    # HTML-E-Mail-Template rendern
     html_message = render_to_string('video/activation_email.html', {
         'user': user,
         'activation_url': activation_url,
     })
-    
-    # Plain-Text-Version erstellen
     plain_message = strip_tags(html_message)
     
-    # E-Mail senden
     send_mail(
         subject='Videoflix - Aktivieren Sie Ihr Konto',
         message=plain_message,
@@ -34,19 +29,19 @@ def send_password_reset_email(user, request):
     """
     Sendet eine Passwort-Reset-E-Mail an den Benutzer
     """
-    # Passwort-Reset-URL erstellen
-    reset_url = f"{request.scheme}://{request.get_host()}/api/password_confirm/{user.id}/{user.password_reset_token}/"
+    frontend_url = "http://localhost:5500"
+    if request.get_host().startswith('127.0.0.1'):
+        frontend_url = "http://127.0.0.1:5500"
     
-    # HTML-E-Mail-Template rendern
+    reset_url = f"{frontend_url}/pages/auth/confirm_password.html?uid={user.id}&token={user.password_reset_token}"
+    
     html_message = render_to_string('video/password_reset_email.html', {
         'user': user,
         'reset_url': reset_url,
     })
     
-    # Plain-Text-Version erstellen
     plain_message = strip_tags(html_message)
     
-    # E-Mail senden
     send_mail(
         subject='Videoflix - Passwort zurücksetzen',
         message=plain_message,

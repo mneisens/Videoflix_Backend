@@ -4,21 +4,15 @@ from django.utils import timezone
 import uuid
 
 class CustomUser(AbstractUser):
-    # E-Mail als Hauptidentifikator verwenden
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=150, blank=True, null=True)
-    
-    # Aktivierungsfelder
     activation_token = models.UUIDField(null=True, blank=True, editable=False)
     activation_token_created = models.DateTimeField(null=True, blank=True)
-    
-    # Passwort-Reset-Felder
     password_reset_token = models.UUIDField(null=True, blank=True, editable=False)
     password_reset_token_created = models.DateTimeField(null=True, blank=True)
     
-    # E-Mail als USERNAME_FIELD verwenden
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    REQUIRED_FIELDS = [] 
     
     def __str__(self):
         return self.email
