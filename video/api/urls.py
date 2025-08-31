@@ -9,6 +9,8 @@ urlpatterns = [
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('token/refresh/', views.TokenRefreshView.as_view(), name='token_refresh'),
     path('password_reset/', views.PasswordResetView.as_view(), name='password_reset'),
-    path('password_confirm/<str:uidb64>/<str:token>/', views.PasswordConfirmView.as_view(), name='password_confirm'),
+    path('password_reset/<str:uidb64>/<str:token>/', views.PasswordConfirmView.as_view(), name='password_confirm'),
     path('video/', views.VideoListView.as_view(), name='video_list'),
+    path('video/<int:movie_id>/<str:resolution>/index.m3u8', views.HLSMasterPlaylistView.as_view(), name='hls_master_playlist'),
+    path('video/<int:movie_id>/<str:resolution>/<str:segment>/', views.HLSVideoSegmentView.as_view(), name='hls_video_segment'),
 ]

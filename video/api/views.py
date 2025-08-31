@@ -12,6 +12,8 @@ from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.conf import settings
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 import uuid
 
 User = get_user_model()
@@ -114,21 +116,18 @@ class LoginView(APIView):
                 'error': 'Konto ist nicht aktiviert. Bitte aktivieren Sie Ihr Konto zuerst.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
-        # JWT-Tokens generieren
         refresh = RefreshToken.for_user(user)
         
-        # HTTP-Only-Cookies setzen
         response = Response({
             'detail': 'Login successful',
             'user': {
                 'id': user.id,
                 'username': user.email
             },
-            'access_token': str(refresh.access_token),  # Für Postman/Header-Auth
-            'refresh_token': str(refresh)  # Für Postman/Header-Auth
+            'access_token': str(refresh.access_token),
+            'refresh_token': str(refresh) 
         }, status=status.HTTP_200_OK)
         
-        # Cookies setzen
         response.set_cookie(
             'access_token',
             str(refresh.access_token),
@@ -154,7 +153,6 @@ class LogoutView(APIView):
     
     def post(self, request):
         try:
-            # Refresh-Token aus Cookie holen
             refresh_token = request.COOKIES.get('refresh_token')
             
             if not refresh_token:
@@ -162,16 +160,13 @@ class LogoutView(APIView):
                     'error': 'Refresh-Token fehlt.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Token zur Blacklist hinzufügen
             token = RefreshToken(refresh_token)
             token.blacklist()
-            
-            # Response erstellen
+
             response = Response({
                 'detail': 'Logout successful! All tokens will be deleted. Refresh token is now invalid.'
             }, status=status.HTTP_200_OK)
             
-            # Cookies löschen
             response.delete_cookie('access_token')
             response.delete_cookie('refresh_token')
             
@@ -191,7 +186,6 @@ class TokenRefreshView(APIView):
     
     def post(self, request):
         try:
-            # Refresh-Token aus Cookie holen
             refresh_token = request.COOKIES.get('refresh_token')
             
             if not refresh_token:
@@ -199,16 +193,13 @@ class TokenRefreshView(APIView):
                     'error': 'Refresh-Token fehlt.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Neuen Access-Token generieren
             token = RefreshToken(refresh_token)
             
-            # Response erstellen
             response = Response({
                 'detail': 'Token refreshed',
                 'access': str(token.access_token)
             }, status=status.HTTP_200_OK)
             
-            # Neuen Access-Token-Cookie setzen
             response.set_cookie(
                 'access_token',
                 str(token.access_token),
@@ -312,3 +303,82 @@ class VideoListView(generics.ListAPIView):
     def get_queryset(self):
         """Gibt nur aktive Videos zurück"""
         return Video.objects.filter(is_active=True)
+
+class HLSMasterPlaylistView(APIView):
+    """View für HLS Master Playlist"""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+    
+    def get(self, request, movie_id, resolution):
+        """Gibt die HLS Master Playlist für ein Video zurück"""
+        try:
+            # Video finden
+            video = get_object_or_404(Video, id=movie_id, is_active=True)
+            
+            # Verfügbare Auflösungen (in der Praxis würden diese aus der Datenbank kommen)
+            available_resolutions = ['1080p', '720p', '480p', '360p']
+            
+            if resolution not in available_resolutions:
+                return Response({
+                    'error': f'Auflösung {resolution} ist nicht verfügbar. Verfügbare Auflösungen: {", ".join(available_resolutions)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # HLS Master Playlist generieren
+            playlist_content = f"""#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2"
+/api/video/{movie_id}/1080p/index.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2"
+/api/video/{movie_id}/720p/index.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=854x480,CODECS="avc1.64001e,mp4a.40.2"
+/api/video/{movie_id}/480p/index.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.64001e,mp4a.40.2"
+/api/video/{movie_id}/360p/index.m3u8
+"""
+            
+            response = HttpResponse(playlist_content, content_type='application/vnd.apple.mpegurl')
+            response['Content-Disposition'] = f'attachment; filename="{video.title}_{resolution}_master.m3u8"'
+            
+            return response
+            
+        except Exception as e:
+            return Response({
+                'error': f'Fehler beim Generieren der HLS Master Playlist: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class HLSVideoSegmentView(APIView):
+    """View für HLS Video Segmente"""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+    
+    def get(self, request, movie_id, resolution, segment):
+        """Gibt ein HLS Video Segment zurück"""
+        try:
+            video = get_object_or_404(Video, id=movie_id, is_active=True)
+            available_resolutions = ['1080p', '720p', '480p', '360p']
+            
+            if resolution not in available_resolutions:
+                return Response({
+                    'error': f'Auflösung {resolution} ist nicht verfügbar. Verfügbare Auflösungen: {", ".join(available_resolutions)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not segment.endswith('.ts') or not segment.startswith('segment_'):
+                return Response({
+                    'error': 'Ungültiges Segment-Format. Erwartet: segment_XXX.ts'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            segment_content = f"""# Mock HLS Video Segment für {video.title} - {resolution}
+# Segment: {segment}
+# Video ID: {movie_id}
+# Dies ist ein Demo-Segment. In der Praxis würde hier ein echtes .ts Video-Segment stehen.
+"""
+            
+            response = HttpResponse(segment_content, content_type='video/mp2t')
+            response['Content-Disposition'] = f'attachment; filename="{segment}"'
+            
+            return response
+            
+        except Exception as e:
+            return Response({
+                'error': f'Fehler beim Laden des Video-Segments: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
