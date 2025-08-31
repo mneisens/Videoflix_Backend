@@ -10,4 +10,5 @@ urlpatterns = [
     path('token/refresh/', views.TokenRefreshView.as_view(), name='token_refresh'),
     path('password_reset/', views.PasswordResetView.as_view(), name='password_reset'),
     path('password_confirm/<str:uidb64>/<str:token>/', views.PasswordConfirmView.as_view(), name='password_confirm'),
+    path('video/', views.VideoListView.as_view(), name='video_list'),
 ]

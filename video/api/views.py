@@ -3,8 +3,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserRegistrationSerializer, UserSerializer, LoginSerializer, PasswordResetSerializer, PasswordConfirmSerializer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from .serializers import UserRegistrationSerializer, UserSerializer, LoginSerializer, PasswordResetSerializer, PasswordConfirmSerializer, VideoSerializer
 from ..services import send_activation_email, send_password_reset_email
+from ..models import Video
 from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -104,82 +106,74 @@ class LoginView(APIView):
         
         if user is None:
             return Response({
-                'error': 'Ungültige E-Mail oder Passwort.'
+                'error': 'Ungültige Anmeldedaten.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
         if not user.is_active:
             return Response({
-                'error': 'Konto ist nicht aktiviert. Bitte aktivieren Sie Ihr Konto über den E-Mail-Link.'
+                'error': 'Konto ist nicht aktiviert. Bitte aktivieren Sie Ihr Konto zuerst.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
+        # JWT-Tokens generieren
         refresh = RefreshToken.for_user(user)
         
+        # HTTP-Only-Cookies setzen
         response = Response({
             'detail': 'Login successful',
             'user': {
                 'id': user.id,
                 'username': user.email
-            }
+            },
+            'access_token': str(refresh.access_token),  # Für Postman/Header-Auth
+            'refresh_token': str(refresh)  # Für Postman/Header-Auth
         }, status=status.HTTP_200_OK)
         
-        jwt_settings = getattr(settings, 'SIMPLE_JWT', {})
-        
+        # Cookies setzen
         response.set_cookie(
-            jwt_settings.get('AUTH_COOKIE', 'access_token'),
+            'access_token',
             str(refresh.access_token),
-            httponly=jwt_settings.get('AUTH_COOKIE_HTTP_ONLY', True),
-            secure=jwt_settings.get('AUTH_COOKIE_SECURE', False),
-            samesite=jwt_settings.get('AUTH_COOKIE_SAMESITE', 'Lax'),
-            max_age=jwt_settings.get('ACCESS_TOKEN_LIFETIME', 3600).total_seconds(),
-            path=jwt_settings.get('AUTH_COOKIE_PATH', '/'),
-            domain=jwt_settings.get('AUTH_COOKIE_DOMAIN', None)
+            max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+            httponly=True,
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']
         )
         
         response.set_cookie(
-            jwt_settings.get('AUTH_COOKIE_REFRESH', 'refresh_token'),
+            'refresh_token',
             str(refresh),
-            httponly=jwt_settings.get('AUTH_COOKIE_HTTP_ONLY', True),
-            secure=jwt_settings.get('AUTH_COOKIE_SECURE', False),
-            samesite=jwt_settings.get('AUTH_COOKIE_SAMESITE', 'Lax'),
-            max_age=jwt_settings.get('REFRESH_TOKEN_LIFETIME', 86400).total_seconds(),
-            path=jwt_settings.get('AUTH_COOKIE_PATH', '/'),
-            domain=jwt_settings.get('AUTH_COOKIE_DOMAIN', None)
+            max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+            httponly=True,
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+            secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']
         )
         
         return response
 
 class LogoutView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        refresh_token = request.COOKIES.get('refresh_token')
-        
-        if not refresh_token:
-            return Response({
-                'error': 'Refresh-Token fehlt.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
+            # Refresh-Token aus Cookie holen
+            refresh_token = request.COOKIES.get('refresh_token')
+            
+            if not refresh_token:
+                return Response({
+                    'error': 'Refresh-Token fehlt.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Token zur Blacklist hinzufügen
             token = RefreshToken(refresh_token)
             token.blacklist()
             
+            # Response erstellen
             response = Response({
                 'detail': 'Logout successful! All tokens will be deleted. Refresh token is now invalid.'
             }, status=status.HTTP_200_OK)
             
-            jwt_settings = getattr(settings, 'SIMPLE_JWT', {})
-            
-            response.delete_cookie(
-                jwt_settings.get('AUTH_COOKIE', 'access_token'),
-                path=jwt_settings.get('AUTH_COOKIE_PATH', '/'),
-                domain=jwt_settings.get('AUTH_COOKIE_DOMAIN', None)
-            )
-            
-            response.delete_cookie(
-                jwt_settings.get('AUTH_COOKIE_REFRESH', 'refresh_token'),
-                path=jwt_settings.get('AUTH_COOKIE_PATH', '/'),
-                domain=jwt_settings.get('AUTH_COOKIE_DOMAIN', None)
-            )
+            # Cookies löschen
+            response.delete_cookie('access_token')
+            response.delete_cookie('refresh_token')
             
             return response
             
@@ -196,33 +190,32 @@ class TokenRefreshView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        refresh_token = request.COOKIES.get('refresh_token')
-        
-        if not refresh_token:
-            return Response({
-                'error': 'Refresh-Token fehlt.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            token = RefreshToken(refresh_token)
-            new_access_token = str(token.access_token)
+            # Refresh-Token aus Cookie holen
+            refresh_token = request.COOKIES.get('refresh_token')
             
+            if not refresh_token:
+                return Response({
+                    'error': 'Refresh-Token fehlt.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Neuen Access-Token generieren
+            token = RefreshToken(refresh_token)
+            
+            # Response erstellen
             response = Response({
                 'detail': 'Token refreshed',
-                'access': new_access_token
+                'access': str(token.access_token)
             }, status=status.HTTP_200_OK)
             
-            jwt_settings = getattr(settings, 'SIMPLE_JWT', {})
-            
+            # Neuen Access-Token-Cookie setzen
             response.set_cookie(
-                jwt_settings.get('AUTH_COOKIE', 'access_token'),
-                new_access_token,
-                httponly=jwt_settings.get('AUTH_COOKIE_HTTP_ONLY', True),
-                secure=jwt_settings.get('AUTH_COOKIE_SECURE', False),
-                samesite=jwt_settings.get('AUTH_COOKIE_SAMESITE', 'Lax'),
-                max_age=jwt_settings.get('ACCESS_TOKEN_LIFETIME', 3600).total_seconds(),
-                path=jwt_settings.get('AUTH_COOKIE_PATH', '/'),
-                domain=jwt_settings.get('AUTH_COOKIE_DOMAIN', None)
+                'access_token',
+                str(token.access_token),
+                max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+                httponly=True,
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']
             )
             
             return response
@@ -244,9 +237,12 @@ class PasswordResetView(APIView):
         serializer.is_valid(raise_exception=True)
         
         email = serializer.validated_data['email']
-        user = User.objects.get(email=email)
+        user = User.objects.get(email=email) # User is guaranteed to exist due to serializer validation
+        
+        # Passwort-Reset-Token generieren
         reset_token = user.generate_password_reset_token()
         
+        # E-Mail senden
         try:
             send_password_reset_email(user, request)
         except Exception as e:
@@ -284,11 +280,12 @@ class PasswordConfirmView(APIView):
                 return Response({
                     'error': 'Passwort-Reset-Token ist abgelaufen. Bitte fordern Sie einen neuen an.'
                 }, status=status.HTTP_400_BAD_REQUEST)
-          
+            
+            # Neues Passwort setzen
             new_password = serializer.validated_data['new_password']
             user.set_password(new_password)
             
-       
+            # Token löschen
             user.clear_password_reset_token()
             
             user.save()
@@ -305,3 +302,13 @@ class PasswordConfirmView(APIView):
             return Response({
                 'error': 'Fehler bei der Passwort-Änderung.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class VideoListView(generics.ListAPIView):
+    """View für die Video-Liste"""
+    serializer_class = VideoSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]  # Unterstützt sowohl Cookies als auch Authorization Header
+    
+    def get_queryset(self):
+        """Gibt nur aktive Videos zurück"""
+        return Video.objects.filter(is_active=True)

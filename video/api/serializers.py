@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from ..models import Video
 
 User = get_user_model()
 
@@ -24,12 +25,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
-        validated_data.pop('confirmed_password')
+        confirmed_password = validated_data.pop('confirmed_password')
         user = User.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
             is_active=False
         )
+        user.generate_activation_token()
         return user
 
 class UserSerializer(serializers.ModelSerializer):
@@ -39,7 +41,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField()
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -63,3 +65,20 @@ class PasswordConfirmSerializer(serializers.Serializer):
     def validate_new_password(self, value):
         validate_password(value)
         return value
+
+class VideoSerializer(serializers.ModelSerializer):
+    """Serializer für das Video-Model"""
+    
+    class Meta:
+        model = Video
+        fields = [
+            'id', 
+            'created_at', 
+            'title', 
+            'description', 
+            'thumbnail_url', 
+            'category',
+            'duration',
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
