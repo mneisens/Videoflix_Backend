@@ -78,6 +78,10 @@ class PasswordConfirmSerializer(serializers.Serializer):
 
 class VideoSerializer(serializers.ModelSerializer):
     """Serializer für das Video-Model"""
+    thumbnail_url = serializers.SerializerMethodField()
+    poster_url = serializers.SerializerMethodField()
+    background_url = serializers.SerializerMethodField()
+    video_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Video
@@ -87,8 +91,27 @@ class VideoSerializer(serializers.ModelSerializer):
             'title', 
             'description', 
             'thumbnail_url', 
+            'poster_url',
+            'background_url',
+            'video_url',
             'category',
             'duration',
             'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_thumbnail_url(self, obj):
+        """Gibt die Thumbnail-URL zurück"""
+        return obj.get_thumbnail_url()
+    
+    def get_poster_url(self, obj):
+        """Gibt die Poster-URL zurück"""
+        return obj.get_poster_url()
+    
+    def get_background_url(self, obj):
+        """Gibt die Background-URL zurück"""
+        return obj.get_background_url()
+    
+    def get_video_url(self, obj):
+        """Gibt die Video-URL zurück"""
+        return obj.get_video_url()

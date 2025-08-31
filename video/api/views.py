@@ -1,28 +1,30 @@
-from rest_framework import status, generics
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.response import Response
+import os
+import re
+from rest_framework import generics, status
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from .serializers import UserRegistrationSerializer, UserSerializer, LoginSerializer, PasswordResetSerializer, PasswordConfirmSerializer, VideoSerializer
-from ..services import send_activation_email, send_password_reset_email
-from ..models import Video
-from django.contrib.auth import get_user_model, authenticate
-from django.utils import timezone
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from django.conf import settings
-from django.http import HttpResponse
+from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
-import uuid
-
-User = get_user_model()
-
-class TestView(APIView):
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        return Response({"message": "Test view works!"}, status=status.HTTP_200_OK)
+from django.http import HttpResponse, HttpResponseRedirect, FileResponse
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.core.mail import send_mail
+from django.conf import settings
+from django.urls import reverse
+from .serializers import (
+    UserRegistrationSerializer, 
+    UserSerializer, 
+    LoginSerializer, 
+    PasswordResetSerializer,
+    PasswordConfirmSerializer,
+    VideoSerializer
+)
+from ..models import CustomUser as User, Video
+from ..services import send_activation_email, send_password_reset_email
+from .authentication import CustomJWTAuthentication
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
@@ -297,11 +299,9 @@ class PasswordConfirmView(APIView):
                     'error': 'Passwort-Reset-Token ist abgelaufen. Bitte fordern Sie einen neuen an.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Neues Passwort setzen
             new_password = serializer.validated_data['new_password']
             user.set_password(new_password)
             
-            # Token löschen
             user.clear_password_reset_token()
             
             user.save()
@@ -323,98 +323,192 @@ class VideoListView(generics.ListAPIView):
     """View für die Video-Liste"""
     serializer_class = VideoSerializer
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication] 
+    authentication_classes = [CustomJWTAuthentication] 
     
     def get_queryset(self):
         """Gibt nur aktive Videos zurück"""
         return Video.objects.filter(is_active=True)
 
-class HLSMasterPlaylistView(APIView):
-    """View für HLS Master Playlist"""
+class HLSManifestView(APIView):
+    """View für HLS-Manifest - erstellt ein korrektes HLS-Manifest für das Frontend"""
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CustomJWTAuthentication]
     
     def get(self, request, movie_id, resolution):
-        """Gibt die HLS Master Playlist für ein Video zurück"""
+        """Gibt ein HLS-Manifest zurück, das zu den echten Videos weiterleitet"""
         try:
             video = get_object_or_404(Video, id=movie_id, is_active=True)
-            available_resolutions = ['1080p', '720p', '480p', '360p']
-            
-            if resolution not in available_resolutions:
+            if not video.get_video_url():
                 return Response({
-                    'error': f'Auflösung {resolution} ist nicht verfügbar. Verfügbare Auflösungen: {", ".join(available_resolutions)}'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    'error': 'Kein Video für diesen Film verfügbar.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
 
-            playlist_content = f"""#EXTM3U
+            if video.video_file:
+                file_size = video.video_file.size
+                estimated_duration = max(1, file_size / (1024 * 1024) * 8)
+            else:
+                estimated_duration = 60  
+
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            manifest_content = f"""#EXTM3U
 #EXT-X-VERSION:3
-#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2"
-/api/video/{movie_id}/1080p/index.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2"
-/api/video/{movie_id}/720p/index.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=854x480,CODECS="avc1.64001e,mp4a.40.2"
-/api/video/{movie_id}/480p/index.m3u8
-#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.64001e,mp4a.40.2"
-/api/video/{movie_id}/360p/index.m3u8
+#EXT-X-TARGETDURATION:{int(estimated_duration)}
+#EXT-X-MEDIA-SEQUENCE:0
+#EXTINF:{estimated_duration:.1f},
+{base_url}/api/video/{movie_id}/{resolution}/segment_001.ts
+#EXT-X-ENDLIST
 """
             
-            response = HttpResponse(playlist_content, content_type='application/vnd.apple.mpegurl')
-            response['Content-Disposition'] = f'attachment; filename="{video.title}_{resolution}_master.m3u8"'
+            response = HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            response['Content-Disposition'] = f'attachment; filename="{video.title}_{resolution}.m3u8"'
             
             return response
             
         except Exception as e:
             return Response({
-                'error': f'Fehler beim Generieren der HLS Master Playlist: {str(e)}'
+                'error': f'Fehler beim Generieren des HLS-Manifests: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class HLSVideoSegmentView(APIView):
-    """View für HLS Video Segmente"""
+    """View für HLS-Video-Segmente - simuliert .ts Segmente"""
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CustomJWTAuthentication]
     
-    def get(self, request, movie_id, resolution, segment):
-        """Gibt ein HLS Video Segment zurück"""
+    def get(self, request, movie_id, resolution, segment_name):
+        """Gibt ein HLS-Video-Segment zurück"""
         try:
             video = get_object_or_404(Video, id=movie_id, is_active=True)
-            available_resolutions = ['1080p', '720p', '480p', '360p']
             
-            if resolution not in available_resolutions:
+            if not video.get_video_url():
                 return Response({
-                    'error': f'Auflösung {resolution} ist nicht verfügbar. Verfügbare Auflösungen: {", ".join(available_resolutions)}'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    'error': 'Kein Video für diesen Film verfügbar.'
+                }, status=status.HTTP_404_NOT_FOUND)
             
-            if not segment.endswith('.ts') or not segment.startswith('segment_'):
+            if video.video_file:
+                file_path = video.video_file.path
+                file_size = os.path.getsize(file_path)
+                
+                range_header = request.META.get('HTTP_RANGE', '').strip()
+                range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                
+                if range_match:
+                    first_byte, last_byte = range_match.groups()
+                    first_byte = int(first_byte)
+                    last_byte = int(last_byte) if last_byte else file_size - 1
+                    
+                    if first_byte >= file_size:
+                        return Response(status=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE)
+                    
+                    length = last_byte - first_byte + 1
+                    
+                    with open(file_path, 'rb') as f:
+                        f.seek(first_byte)
+                        data = f.read(length)
+                    
+                    response = HttpResponse(data, content_type='video/mp4', status=status.HTTP_206_PARTIAL_CONTENT)
+                    response['Content-Range'] = f'bytes {first_byte}-{last_byte}/{file_size}'
+                    response['Content-Length'] = str(length)
+                else:
+                    response = FileResponse(video.video_file, content_type='video/mp4')
+                
+                response['Access-Control-Allow-Origin'] = '*'
+                response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Range'
+                response['Accept-Ranges'] = 'bytes'
+                response['Content-Disposition'] = f'attachment; filename="{segment_name}"'
+                return response
+            
+            elif video.video_url:
+                response = HttpResponseRedirect(video.video_url)
+                response['Access-Control-Allow-Origin'] = '*'
+                response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+                return response
+            
+            else:
                 return Response({
-                    'error': 'Ungültiges Segment-Format. Erwartet: segment_XXX.ts'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            segment_content = f"""# Mock HLS Video Segment für {video.title} - {resolution}
-# Segment: {segment}
-# Video ID: {movie_id}
-# Dies ist ein Demo-Segment. In der Praxis würde hier ein echtes .ts Video-Segment stehen.
-"""
-            
-            response = HttpResponse(segment_content, content_type='video/mp2t')
-            response['Content-Disposition'] = f'attachment; filename="{segment}"'
-            
-            return response
-            
+                    'error': 'Kein Video verfügbar.'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
         except Exception as e:
             return Response({
                 'error': f'Fehler beim Laden des Video-Segments: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class DebugView(APIView):
-    permission_classes = [AllowAny]
+class VideoStreamView(APIView):
+    """View für Video-Streaming - nutzt die vorhandenen Video-Felder"""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CustomJWTAuthentication]
     
-    def post(self, request):
-        """Debug-View um zu sehen, was das Frontend sendet"""
-        return Response({
-            'received_data': request.data,
-            'headers': dict(request.headers),
-            'method': request.method,
-            'content_type': request.content_type,
-        }, status=status.HTTP_200_OK)
+    def get(self, request, movie_id, resolution):
+        """Gibt das Video zurück (entweder lokale Datei oder URL)"""
+        try:
+            video = get_object_or_404(Video, id=movie_id, is_active=True)
+            
+            if not video.get_video_url():
+                return Response({
+                    'error': 'Kein Video für diesen Film verfügbar.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            if video.video_file:
+                return FileResponse(video.video_file, content_type='video/mp4')
+            
+            elif video.video_url:
+                return HttpResponseRedirect(video.video_url)
+            
+            else:
+                return Response({
+                    'error': 'Kein Video verfügbar.'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
+        except Exception as e:
+            return Response({
+                'error': f'Fehler beim Laden des Videos: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class VideoView(APIView):
+    """Einfache Video-View für direktes MP4-Streaming"""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [CustomJWTAuthentication]
+    
+    def get(self, request, movie_id, resolution):
+        """Gibt das Video direkt als MP4-Stream zurück"""
+        try:
+            video = get_object_or_404(Video, id=movie_id, is_active=True)
+            
+            if not video.get_video_url():
+                return Response({
+                    'error': 'Kein Video für diesen Film verfügbar.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            if video.video_file:
+                response = FileResponse(video.video_file, content_type='video/mp4')
+                response['Access-Control-Allow-Origin'] = '*'
+                response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Range'
+                response['Accept-Ranges'] = 'bytes'
+                return response
+            
+            elif video.video_url:
+                response = HttpResponseRedirect(video.video_url)
+                response['Access-Control-Allow-Origin'] = '*'
+                response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+                return response
+            
+            else:
+                return Response({
+                    'error': 'Kein Video verfügbar.'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
+        except Exception as e:
+            return Response({
+                'error': f'Fehler beim Laden des Videos: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CSRFTokenView(APIView):
     permission_classes = [AllowAny]
