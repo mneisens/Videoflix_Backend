@@ -1,87 +1,13 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from django.contrib.auth.password_validation import validate_password
 from ..models import Video
-
-User = get_user_model()
-
-class UserRegistrationSerializer(serializers.ModelSerializer):
-    confirmed_password = serializers.CharField(write_only=True)
-    
-    class Meta:
-        model = User
-        fields = ['email', 'password', 'confirmed_password']
-        extra_kwargs = {
-            'password': {'write_only': True}
-        }
-    
-    def validate(self, data):
-        if data['password'] != data['confirmed_password']:
-            raise serializers.ValidationError("Passwörter stimmen nicht überein.")
-        return data
-    
-    def validate_password(self, value):
-        validate_password(value)
-        return value
-    
-    def create(self, validated_data):
-        confirmed_password = validated_data.pop('confirmed_password')
-        email = validated_data['email']
-        username = email.split('@')[0]
-        
-        base_username = username
-        counter = 1
-        while User.objects.filter(username=username).exists():
-            username = f"{base_username}{counter}"
-            counter += 1
-        
-        user = User.objects.create_user(
-            username=username,
-            email=validated_data['email'],
-            password=validated_data['password'],
-            is_active=False
-        )
-        user.generate_activation_token()
-        return user
-
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'email']
-
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField()
-
-class PasswordResetSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    
-    def validate_email(self, value):
-        try:
-            User.objects.get(email=value)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("Kein Benutzer mit dieser E-Mail-Adresse gefunden.")
-        return value
-
-class PasswordConfirmSerializer(serializers.Serializer):
-    new_password = serializers.CharField(write_only=True)
-    confirm_password = serializers.CharField(write_only=True)
-    
-    def validate(self, data):
-        if data['new_password'] != data['confirm_password']:
-            raise serializers.ValidationError("Passwörter stimmen nicht überein.")
-        return data
-    
-    def validate_new_password(self, value):
-        validate_password(value)
-        return value
+from django.conf import settings
 
 class VideoSerializer(serializers.ModelSerializer):
-    """Serializer für das Video-Model"""
     thumbnail_url = serializers.SerializerMethodField()
     poster_url = serializers.SerializerMethodField()
     background_url = serializers.SerializerMethodField()
     video_url = serializers.SerializerMethodField()
+    direct_video_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Video
@@ -94,6 +20,7 @@ class VideoSerializer(serializers.ModelSerializer):
             'poster_url',
             'background_url',
             'video_url',
+            'direct_video_url',
             'category',
             'duration',
             'updated_at'
@@ -101,17 +28,34 @@ class VideoSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_thumbnail_url(self, obj):
-        """Gibt die Thumbnail-URL zurück"""
-        return obj.get_thumbnail_url()
+        url = obj.get_thumbnail_url()
+        if url and not url.startswith('http'):
+            return f"{settings.SITE_URL}{url}" if hasattr(settings, 'SITE_URL') else url
+        return url
     
     def get_poster_url(self, obj):
-        """Gibt die Poster-URL zurück"""
-        return obj.get_poster_url()
+        url = obj.get_poster_url()
+        if url and not url.startswith('http'):
+            return f"{settings.SITE_URL}{url}" if hasattr(settings, 'SITE_URL') else url
+        return url
     
     def get_background_url(self, obj):
-        """Gibt die Background-URL zurück"""
-        return obj.get_background_url()
+        url = obj.get_background_url()
+        if url and not url.startswith('http'):
+            return f"{settings.SITE_URL}{url}" if hasattr(settings, 'SITE_URL') else url
+        return url
     
     def get_video_url(self, obj):
-        """Gibt die Video-URL zurück"""
-        return obj.get_video_url()
+        """Gibt die HLS-URL für das Video zurück"""
+        if obj.video_file:
+            return f"{settings.SITE_URL}/api/video/{obj.id}/720p/index.m3u8"
+        elif obj.video_url and not obj.video_url.startswith('http://localhost:8000') and not obj.video_url.startswith('http://127.0.0.1:8000'):
+            return obj.video_url
+        else:
+            return None
+    
+    def get_direct_video_url(self, obj):
+        """Gibt die direkte Video-URL zurück"""
+        if obj.video_file or obj.video_url:
+            return f"{settings.SITE_URL}/api/video/{obj.id}/direct/"
+        return None

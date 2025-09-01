@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'auth_app',
     'video',
 ]
 
@@ -132,6 +133,9 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Site URL for absolute URLs
+SITE_URL = 'http://localhost:8000'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -192,19 +196,31 @@ SIMPLE_JWT = {
 CORS_ALLOW_ALL_ORIGINS = False  
 CORS_ALLOW_CREDENTIALS = True
 
-
+# Erlaube alle lokalen Ports für Entwicklung
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5500",
     "http://127.0.0.1:5500",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
 ]
 
+# Erlaube alle lokalen Ports mit Regex
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127\.0\.0\.1:\d+$",
 ]
 
+# Erlaube alle HTTP-Methoden
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -212,8 +228,10 @@ CORS_ALLOW_METHODS = [
     'PATCH',
     'POST',
     'PUT',
+    'HEAD',
 ]
 
+# Erlaube alle wichtigen Headers
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -224,16 +242,35 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'range',
+    'if-range',
+    'if-modified-since',
+    'if-none-match',
 ]
 
-
+# Exponiere wichtige Headers
 CORS_EXPOSE_HEADERS = [
     'set-cookie',
+    'content-range',
+    'accept-ranges',
+    'content-length',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5500",
     "http://127.0.0.1:5500",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
 ]
 
 CSRF_COOKIE_SAMESITE = 'Lax'
@@ -250,4 +287,4 @@ EMAIL_HOST_USER = 'developertest181@gmail.com'
 EMAIL_HOST_PASSWORD = 'qqbofjugcyzysoqf'
 DEFAULT_FROM_EMAIL = 'noreply@videoflix.com'
 
-AUTH_USER_MODEL = 'video.CustomUser'
+AUTH_USER_MODEL = 'auth_app.CustomUser'
