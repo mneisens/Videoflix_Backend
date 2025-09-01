@@ -176,22 +176,21 @@ class LoginView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  
     
     def post(self, request):
         try:
             refresh_token = request.COOKIES.get('refresh_token')
             
-            if not refresh_token:
-                return Response({
-                    'error': 'Refresh-Token fehlt.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            if refresh_token:
+                try:
+                    token = RefreshToken(refresh_token)
+                    token.blacklist()
+                except TokenError:
+                    pass
 
             response = Response({
-                'detail': 'Logout successful! All tokens will be deleted. Refresh token is now invalid.'
+                'detail': 'Logout successful! All tokens will be deleted.'
             }, status=status.HTTP_200_OK)
             
             response.delete_cookie('access_token')
@@ -199,14 +198,15 @@ class LogoutView(APIView):
             
             return response
             
-        except TokenError:
-            return Response({
-                'error': 'Ungültiger Refresh-Token.'
-            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({
-                'error': 'Fehler beim Logout.'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            response = Response({
+                'detail': 'Logout completed. Cookies cleared.'
+            }, status=status.HTTP_200_OK)
+            
+            response.delete_cookie('access_token')
+            response.delete_cookie('refresh_token')
+            
+            return response
 
 class TokenRefreshView(APIView):
     permission_classes = [AllowAny]
@@ -374,18 +374,15 @@ class HLSManifestView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class HLSVideoSegmentView(APIView):
-    """View für HLS-Video-Segmente - simuliert .ts Segmente"""
     permission_classes = [IsAuthenticated]
     authentication_classes = [CustomJWTAuthentication]
     
     def get(self, request, movie_id, resolution, segment_name):
-        """Gibt ein HLS-Video-Segment zurück"""
         try:
             video = get_object_or_404(Video, id=movie_id, is_active=True)
             
             if not video.get_video_url():
                 return Response({
-                    'error': 'Kein Video für diesen Film verfügbar.'
                 }, status=status.HTTP_404_NOT_FOUND)
             
             if video.video_file:
@@ -440,12 +437,10 @@ class HLSVideoSegmentView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class VideoStreamView(APIView):
-    """View für Video-Streaming - nutzt die vorhandenen Video-Felder"""
     permission_classes = [IsAuthenticated]
     authentication_classes = [CustomJWTAuthentication]
     
     def get(self, request, movie_id, resolution):
-        """Gibt das Video zurück (entweder lokale Datei oder URL)"""
         try:
             video = get_object_or_404(Video, id=movie_id, is_active=True)
             
@@ -471,12 +466,10 @@ class VideoStreamView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class VideoView(APIView):
-    """Einfache Video-View für direktes MP4-Streaming"""
     permission_classes = [IsAuthenticated]
     authentication_classes = [CustomJWTAuthentication]
     
     def get(self, request, movie_id, resolution):
-        """Gibt das Video direkt als MP4-Stream zurück"""
         try:
             video = get_object_or_404(Video, id=movie_id, is_active=True)
             
