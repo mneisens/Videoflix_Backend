@@ -21,7 +21,7 @@ Ein Django-basiertes Backend für eine Video-Streaming-Plattform mit Authentifiz
 
 ### 1. Repository klonen
 ```bash
-git clone <repository-url>
+git clone https://github.com/mneisens/Videoflix_Backend.git
 cd Videoflix_Backend
 ```
 
