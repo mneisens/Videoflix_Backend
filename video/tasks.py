@@ -17,35 +17,31 @@ def create_hls_stream(video_file_path, video_id, resolution='720p'):
     Konvertiert eine MP4-Datei in einen HLS-Stream
     """
     try:
-        # HLS-Ausgabeverzeichnis erstellen
         hls_output_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(video_id) / resolution
         hls_output_dir.mkdir(parents=True, exist_ok=True)
         
-        # HLS-Ausgabedatei
         hls_output = hls_output_dir / 'playlist.m3u8'
         
-        # FFmpeg-Befehl für HLS-Konvertierung
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', str(video_file_path),
-            '-c:v', 'libx264',  # H.264 Video-Codec
-            '-c:a', 'aac',      # AAC Audio-Codec
-            '-f', 'hls',        # HLS-Format
-            '-hls_time', '10',  # Segment-Länge in Sekunden
-            '-hls_list_size', '0',  # Alle Segmente behalten
+            '-c:v', 'libx264',  
+            '-c:a', 'aac',     
+            '-f', 'hls',        
+            '-hls_time', '10',  
+            '-hls_list_size', '0',  
             '-hls_segment_filename', str(hls_output_dir / 'segment_%03d.ts'),
-            '-hls_playlist_type', 'vod',  # Video on Demand
-            '-preset', 'fast',  # Schnelle Kodierung
-            '-crf', '23',       # Qualität (23 = gut)
+            '-hls_playlist_type', 'vod',  
+            '-preset', 'fast',  
+            '-crf', '23',      
             str(hls_output)
         ]
         
-        # FFmpeg ausführen
         result = subprocess.run(
             ffmpeg_cmd,
             capture_output=True,
             text=True,
-            timeout=300  # 5 Minuten Timeout
+            timeout=300  
         )
         
         if result.returncode == 0:
@@ -76,8 +72,7 @@ def get_hls_segments(video_id, resolution='720p'):
         
         if not hls_dir.exists():
             return None
-            
-        # Playlist-Datei finden
+
         playlist_files = list(hls_dir.glob('*.m3u8'))
         if not playlist_files:
             return None
@@ -141,7 +136,6 @@ def process_multiple_resolutions(video_id, resolutions=None):
     
     for resolution in resolutions:
         try:
-            # Check if stream already exists
             existing_stream = get_hls_segments(video_id, resolution)
             
             if existing_stream:
@@ -149,7 +143,6 @@ def process_multiple_resolutions(video_id, resolutions=None):
                 results[resolution] = True
                 continue
             
-            # Process the resolution
             result = process_video_upload.delay(video_id, resolution)
             results[resolution] = result
             
@@ -185,7 +178,6 @@ def cleanup_old_segments(video_id, days_old=7):
                     if segment_file.endswith('.ts'):
                         segment_path = os.path.join(resolution_path, segment_file)
                         
-                        # Check file modification time
                         file_mtime = datetime.fromtimestamp(os.path.getmtime(segment_path))
                         
                         if file_mtime < cutoff_date:
@@ -212,7 +204,6 @@ def regenerate_hls_stream(video_id, resolution='720p', force=False):
             logger.error(f"Video {video_id} has no video file")
             return False
         
-        # Remove existing stream if force=True
         if force:
             hls_dir = os.path.join(settings.MEDIA_ROOT, 'hls', str(video_id), resolution)
             if os.path.exists(hls_dir):
@@ -220,7 +211,6 @@ def regenerate_hls_stream(video_id, resolution='720p', force=False):
                 shutil.rmtree(hls_dir)
                 logger.info(f"Removed existing {resolution} stream for video {video_id}")
         
-        # Process the video
         return process_video_upload.delay(video_id, resolution)
         
     except Video.DoesNotExist:
@@ -235,18 +225,10 @@ def handle_failed_job(job, *exc_info):
     """
     Handle failed RQ jobs
     """
-    logger.error(f"Job {job.id} failed: {exc_info}")
-    
-    # You can add custom error handling here:
-    # - Send notifications
-    # - Retry logic
-    # - Fallback processing
-    # - Database updates
-    
+    logger.error(f"Job {job.id} failed: {exc_info}")    
     return False
 
 
-# Utility functions for task management
 def get_queue_stats():
     """
     Get statistics about RQ queues

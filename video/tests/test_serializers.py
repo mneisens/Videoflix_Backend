@@ -36,7 +36,6 @@ class VideoSerializerTests(TestCase):
             'video_url', 'direct_video_url', 'created_at', 'updated_at'
         }
         
-        # Prüfe, dass alle erwarteten Felder vorhanden sind
         for field in expected_fields:
             self.assertIn(field, data, f"Feld '{field}' fehlt im Serializer")
     
@@ -49,7 +48,7 @@ class VideoSerializerTests(TestCase):
         self.assertEqual(data['description'], "Test Description")
         self.assertEqual(data['duration'], 120)
         self.assertEqual(data['category'], "action")
-        # is_active ist nicht im Serializer enthalten
+
     
     def test_video_serializer_with_local_video_file(self):
         """Test: Serializer mit lokaler Video-Datei"""
@@ -63,7 +62,6 @@ class VideoSerializerTests(TestCase):
         serializer = VideoSerializer(local_video)
         data = serializer.data
         
-        # video_url sollte HLS-URL generieren
         self.assertIn('720p', data['video_url'])
         self.assertIn('index.m3u8', data['video_url'])
         self.assertIn(str(local_video.id), data['video_url'])
@@ -80,7 +78,6 @@ class VideoSerializerTests(TestCase):
         serializer = VideoSerializer(external_video)
         data = serializer.data
         
-        # video_url sollte externe URL zurückgeben
         self.assertEqual(data['video_url'], "https://external.com/video.mp4")
     
     def test_video_serializer_without_video_source(self):
@@ -94,12 +91,10 @@ class VideoSerializerTests(TestCase):
         serializer = VideoSerializer(no_video)
         data = serializer.data
         
-        # video_url sollte None sein
         self.assertIsNone(data['video_url'])
     
     def test_video_serializer_validation(self):
         """Test: Serializer-Validierung"""
-        # Gültige Daten
         valid_data = {
             'title': 'Valid Video',
             'description': 'Valid Description',
@@ -110,10 +105,9 @@ class VideoSerializerTests(TestCase):
         serializer = VideoSerializer(data=valid_data)
         self.assertTrue(serializer.is_valid())
         
-        # Ungültige Daten
         invalid_data = {
-            'title': '',  # Leerer Titel
-            'description': '',  # Leere Beschreibung
+            'title': '',  
+            'description': '',  
         }
         
         serializer = VideoSerializer(data=invalid_data)

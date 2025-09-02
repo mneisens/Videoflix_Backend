@@ -99,7 +99,7 @@ class VideoModelTests(TestCase):
         )
         
         videos = list(Video.objects.all())
-        self.assertEqual(videos[0], video2)  # Neueste zuerst
+        self.assertEqual(videos[0], video2)
         self.assertEqual(videos[1], video1)
     
     def tearDown(self):
@@ -170,7 +170,6 @@ class VideoSerializerTests(TestCase):
         serializer = VideoSerializer(local_video)
         data = serializer.data
         
-        # video_url sollte HLS-URL generieren
         self.assertIn('720p', data['video_url'])
         self.assertIn('index.m3u8', data['video_url'])
         self.assertIn(str(local_video.id), data['video_url'])
@@ -186,8 +185,6 @@ class VideoSerializerTests(TestCase):
         
         serializer = VideoSerializer(external_video)
         data = serializer.data
-        
-        # video_url sollte externe URL zurückgeben
         self.assertEqual(data['video_url'], "https://external.com/video.mp4")
     
     def test_video_serializer_without_video_source(self):
@@ -201,12 +198,10 @@ class VideoSerializerTests(TestCase):
         serializer = VideoSerializer(no_video)
         data = serializer.data
         
-        # video_url sollte None sein
         self.assertIsNone(data['video_url'])
     
     def test_video_serializer_validation(self):
         """Test: Serializer-Validierung"""
-        # Gültige Daten
         valid_data = {
             'title': 'Valid Video',
             'description': 'Valid Description',
@@ -217,10 +212,9 @@ class VideoSerializerTests(TestCase):
         serializer = VideoSerializer(data=valid_data)
         self.assertTrue(serializer.is_valid())
         
-        # Ungültige Daten
         invalid_data = {
-            'title': '',  # Leerer Titel
-            'category': 'invalid_category'  # Ungültige Kategorie
+            'title': '',  
+            'category': 'invalid_category'
         }
         
         serializer = VideoSerializer(data=invalid_data)
@@ -275,7 +269,7 @@ class VideoListViewTests(APITestCase):
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Nur aktive Videos
+        self.assertEqual(len(response.data), 2) 
         
         video_titles = [video['title'] for video in response.data]
         self.assertIn("Test Video 1", video_titles)

@@ -44,7 +44,7 @@ class VideoListViewTests(APITestCase):
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Nur aktive Videos
+        self.assertEqual(len(response.data), 2) 
         
         video_titles = [video['title'] for video in response.data]
         self.assertIn("Test Video 1", video_titles)

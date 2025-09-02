@@ -43,17 +43,14 @@ class Command(BaseCommand):
         )
 
         try:
-            # Get the specified queues
             queue_instances = [get_queue(queue_name) for queue_name in queues]
-            
-            # Create workers
+
             workers = []
             for i in range(num_workers):
                 worker = get_worker(*queue_instances)
                 workers.append(worker)
                 self.stdout.write(f'Worker {i+1} created for queues: {", ".join(queues)}')
 
-            # Start workers
             if burst_mode:
                 self.stdout.write('Running workers in burst mode...')
                 for worker in workers:
