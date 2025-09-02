@@ -21,16 +21,14 @@ class VideoModelTests(TestCase):
         video = Video.objects.create(
             title="Test Video",
             description="Test Description",
+            category="action",
             duration=120,
-            release_year=2024,
-            genre="Action",
-            rating=8.5,
             is_active=True
         )
         
         self.assertEqual(video.title, "Test Video")
         self.assertEqual(video.duration, 120)
-        self.assertEqual(video.genre, "Action")
+        self.assertEqual(video.category, "action")
         self.assertTrue(video.is_active)
     
     def test_video_default_values(self):
@@ -40,11 +38,9 @@ class VideoModelTests(TestCase):
             description="Default Description"
         )
         
-        self.assertEqual(video.duration, 0)
-        self.assertEqual(video.release_year, 2024)
-        self.assertEqual(video.genre, "Unbekannt")
-        self.assertEqual(video.rating, 0.0)
-        self.assertFalse(video.is_active)
+        self.assertIsNone(video.duration)
+        self.assertEqual(video.category, "other")
+        self.assertTrue(video.is_active)
     
     def test_video_string_representation(self):
         """Test: String-Repräsentation"""
@@ -55,8 +51,8 @@ class VideoModelTests(TestCase):
         
         self.assertEqual(str(video), "String Video")
     
-    def test_video_active_manager(self):
-        """Test: Active Manager filtert nur aktive Videos"""
+    def test_video_active_filter(self):
+        """Test: Aktive Videos filtern"""
         Video.objects.create(
             title="Active Video",
             description="Active Description",
@@ -69,7 +65,7 @@ class VideoModelTests(TestCase):
             is_active=False
         )
         
-        active_videos = Video.active.all()
+        active_videos = Video.objects.filter(is_active=True)
         self.assertEqual(active_videos.count(), 1)
         self.assertEqual(active_videos.first().title, "Active Video")
     

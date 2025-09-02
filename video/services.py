@@ -150,3 +150,118 @@ def ensure_hls_stream(video_file_path, video_id, resolution='720p'):
         return create_hls_stream(video_file_path, video_id, resolution)
     
     return hls_info
+
+def process_video_async(video_id, resolutions=None, priority='default'):
+    """
+    Verarbeitet ein Video asynchron mit Background-Tasks
+    """
+    if resolutions is None:
+        resolutions = ['480p', '720p', '1080p']
+    
+    try:
+        # Import hier, um zirkuläre Imports zu vermeiden
+        from .tasks import process_video_upload, process_multiple_resolutions
+        
+        if len(resolutions) == 1:
+            # Einzelne Auflösung
+            job = process_video_upload.delay(video_id, resolutions[0])
+            return {
+                'success': True,
+                'job_id': job.id,
+                'message': f'Video processing queued for {resolutions[0]}',
+                'queue': priority
+            }
+        else:
+            # Mehrere Auflösungen
+            job = process_multiple_resolutions.delay(video_id, resolutions)
+            return {
+                'success': True,
+                'job_id': job.id,
+                'message': f'Video processing queued for {len(resolutions)} resolutions',
+                'queue': 'high'
+            }
+            
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+def get_video_processing_status(video_id):
+    """
+    Gibt den aktuellen Verarbeitungsstatus eines Videos zurück
+    """
+    try:
+        from django_rq import get_queue
+        
+        # Prüfe alle Queues nach Jobs für dieses Video
+        status = {
+            'video_id': video_id,
+            'queues': {},
+            'processing': False,
+            'completed_resolutions': [],
+            'pending_resolutions': []
+        }
+        
+        for queue_name in ['default', 'high', 'low']:
+            queue = get_queue(queue_name)
+            queue_jobs = []
+            
+            for job in queue.jobs:
+                if hasattr(job, 'args') and len(job.args) > 0:
+                    if job.args[0] == video_id:
+                        queue_jobs.append({
+                            'job_id': job.id,
+                            'status': 'queued',
+                            'created_at': job.created_at.isoformat() if job.created_at else None
+                        })
+                        status['processing'] = True
+            
+            status['queues'][queue_name] = queue_jobs
+        
+        # Prüfe welche Auflösungen bereits verarbeitet wurden
+        resolutions = ['480p', '720p', '1080p']
+        for resolution in resolutions:
+            hls_info = get_hls_segments(video_id, resolution)
+            if hls_info:
+                status['completed_resolutions'].append(resolution)
+            else:
+                status['pending_resolutions'].append(resolution)
+        
+        return status
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+def cancel_video_processing(video_id):
+    """
+    Bricht die Verarbeitung eines Videos ab
+    """
+    try:
+        from django_rq import get_queue
+        
+        cancelled_count = 0
+        
+        for queue_name in ['default', 'high', 'low']:
+            queue = get_queue(queue_name)
+            
+            for job in queue.jobs:
+                if hasattr(job, 'args') and len(job.args) > 0:
+                    if job.args[0] == video_id:
+                        job.cancel()
+                        cancelled_count += 1
+        
+        return {
+            'success': True,
+            'cancelled_jobs': cancelled_count,
+            'message': f'Cancelled {cancelled_count} processing jobs for video {video_id}'
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }

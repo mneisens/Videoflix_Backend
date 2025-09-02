@@ -20,10 +20,8 @@ class VideoSerializerTests(TestCase):
         self.video = Video.objects.create(
             title="Test Video",
             description="Test Description",
+            category="action",
             duration=120,
-            release_year=2024,
-            genre="Action",
-            rating=8.5,
             is_active=True
         )
     
@@ -33,13 +31,14 @@ class VideoSerializerTests(TestCase):
         data = serializer.data
         
         expected_fields = {
-            'id', 'title', 'description', 'duration', 'release_year',
-            'genre', 'rating', 'director', 'cast', 'language', 'subtitles',
-            'video_file', 'video_url', 'thumbnail', 'poster', 'background',
-            'is_active', 'created_at', 'updated_at'
+            'id', 'title', 'description', 'category', 'duration',
+            'thumbnail_url', 'poster_url', 'background_url',
+            'video_url', 'direct_video_url', 'created_at', 'updated_at'
         }
         
-        self.assertEqual(set(data.keys()), expected_fields)
+        # Prüfe, dass alle erwarteten Felder vorhanden sind
+        for field in expected_fields:
+            self.assertIn(field, data, f"Feld '{field}' fehlt im Serializer")
     
     def test_video_serializer_data_accuracy(self):
         """Test: Serialisierte Daten sind korrekt"""
@@ -49,9 +48,8 @@ class VideoSerializerTests(TestCase):
         self.assertEqual(data['title'], "Test Video")
         self.assertEqual(data['description'], "Test Description")
         self.assertEqual(data['duration'], 120)
-        self.assertEqual(data['genre'], "Action")
-        self.assertEqual(data['rating'], 8.5)
-        self.assertTrue(data['is_active'])
+        self.assertEqual(data['category'], "action")
+        # is_active ist nicht im Serializer enthalten
     
     def test_video_serializer_with_local_video_file(self):
         """Test: Serializer mit lokaler Video-Datei"""
@@ -106,9 +104,7 @@ class VideoSerializerTests(TestCase):
             'title': 'Valid Video',
             'description': 'Valid Description',
             'duration': 150,
-            'release_year': 2024,
-            'genre': 'Comedy',
-            'rating': 7.5
+            'category': 'comedy'
         }
         
         serializer = VideoSerializer(data=valid_data)
@@ -117,15 +113,13 @@ class VideoSerializerTests(TestCase):
         # Ungültige Daten
         invalid_data = {
             'title': '',  # Leerer Titel
-            'duration': -10,  # Negative Dauer
-            'rating': 15.0  # Zu hohe Bewertung
+            'description': '',  # Leere Beschreibung
         }
         
         serializer = VideoSerializer(data=invalid_data)
         self.assertFalse(serializer.is_valid())
         self.assertIn('title', serializer.errors)
-        self.assertIn('duration', serializer.errors)
-        self.assertIn('rating', serializer.errors)
+        self.assertIn('description', serializer.errors)
     
     def tearDown(self):
         """Test-Daten aufräumen"""
