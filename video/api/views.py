@@ -1,10 +1,37 @@
 import os
 import re
+from pathlib import Path
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import BasePermission
 from django.shortcuts import get_object_or_404
+
+class CookieOrAuthenticatedPermission(BasePermission):
+    """
+    Erlaubt Zugriff wenn:
+    1. Benutzer ist authentifiziert (JWT-Token im Header)
+    2. ODER gültiger access_token Cookie ist vorhanden
+    """
+    
+    def has_permission(self, request, view):
+        if request.user.is_authenticated:
+            return True
+
+        access_token = request.COOKIES.get('access_token')
+        if access_token:
+            try:
+                from auth_app.api.authentication import CustomJWTAuthentication
+                auth = CustomJWTAuthentication()
+                user, token = auth.authenticate(request)
+                if user:
+                    request.user = user
+                    return True
+            except:
+                pass
+        
+        return False
 from django.http import HttpResponse, HttpResponseRedirect, FileResponse, JsonResponse
 from .serializers import VideoSerializer
 from ..models import Video
@@ -19,7 +46,7 @@ class VideoListView(generics.ListAPIView):
     """
     queryset = Video.objects.all().order_by('-created_at')
     serializer_class = VideoSerializer
-    permission_classes = []
+    permission_classes = [CookieOrAuthenticatedPermission] 
 
     def get(self, request, *args, **kwargs):
         try:
@@ -28,34 +55,30 @@ class VideoListView(generics.ListAPIView):
             
             if cached_data is None:
                 response = super().get(request, *args, **kwargs)
-                # Cache für 5 Minuten
                 cache.set(cache_key, response.data, 300)
                 return response
             
             return Response(cached_data)
         except Exception as e:
-            # Fallback: Direkte Serialisierung ohne Cache
             try:
                 videos = Video.objects.all().order_by('-created_at')
                 serializer = VideoSerializer(videos, many=True, context={'request': request})
                 return Response(serializer.data)
             except Exception as fallback_error:
-                return Response([], status=200)  # Leere Liste als Fallback
+                return Response([], status=200)
 
 
 class HLSManifestView(generics.GenericAPIView):
     """
     HLS-Manifest für einen bestimmten Film und eine gewählte Auflösung
     """
-    permission_classes = []  # Keine Authentifizierung erforderlich
+    permission_classes = [CookieOrAuthenticatedPermission]
     
     def get(self, request, movie_id, resolution):
         try:
             video = get_object_or_404(Video, id=movie_id)
             
-            # Wenn Video eine lokale Datei hat, erstelle ein HLS-Manifest
             if video.video_file:
-                # Direkte Referenz auf die MP4-Datei
                 video_url = f"{settings.SITE_URL}{video.video_file.url}"
                 
                 manifest_content = f"""#EXTM3U
@@ -69,7 +92,6 @@ class HLSManifestView(generics.GenericAPIView):
 """
                 return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
             
-            # Wenn Video eine externe URL hat
             elif video.video_url and not video.video_url.startswith(f'/api/video/{movie_id}'):
                 manifest_content = f"""#EXTM3U
 #EXT-X-VERSION:3
@@ -78,7 +100,6 @@ class HLSManifestView(generics.GenericAPIView):
 """
                 return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
             
-            # Fallback: Leeres Manifest
             else:
                 manifest_content = """#EXTM3U
 #EXT-X-VERSION:3
@@ -91,7 +112,6 @@ class HLSManifestView(generics.GenericAPIView):
                 return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
                 
         except Exception as e:
-            # Fallback: Leeres Manifest bei Fehlern
             manifest_content = """#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
@@ -107,41 +127,24 @@ class HLSVideoSegmentView(generics.GenericAPIView):
     """
     HLS-Videosegment für einen bestimmten Film in gewählter Auflösung
     """
-    permission_classes = []  # Keine Authentifizierung erforderlich
+    permission_classes = [CookieOrAuthenticatedPermission]  # Cookie-basierte Auth
     
     def get(self, request, movie_id, resolution, segment):
         try:
-            video = get_object_or_404(Video, id=movie_id)
+            hls_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(movie_id) / resolution
+            segment_path = hls_dir / segment
+
+            if not hls_dir.exists():
+                return JsonResponse({'error': f'HLS-Verzeichnis nicht gefunden: {hls_dir}'}, status=404)
             
-            # Cache-Key für Segment-Info
-            cache_key = f'hls_segment_info_{movie_id}_{resolution}'
-            segment_info = cache.get(cache_key)
+            if not segment_path.exists():
+                return JsonResponse({'error': f'Segment nicht gefunden: {segment_path}'}, status=404)
             
-            if not segment_info:
-                segment_info = get_hls_segments(movie_id, resolution)
-                if segment_info:
-                    cache.set(cache_key, segment_info, 1800)  # 30 Minuten Cache
-            
-            if not segment_info:
-                return JsonResponse({'error': 'HLS-Segmente nicht gefunden'}, status=404)
-            
-            # Suche nach dem spezifischen Segment
-            segment_path = None
-            for seg in segment_info.get('segments', []):
-                if seg.endswith(segment):
-                    segment_path = seg
-                    break
-            
-            if not segment_path or not os.path.exists(segment_path):
-                return JsonResponse({'error': 'Segment nicht gefunden'}, status=404)
-            
-            # Serve das Segment mit Range-Header-Unterstützung
             response = FileResponse(
                 open(segment_path, 'rb'),
                 content_type='video/MP2T'
             )
             
-            # Cache-Headers für bessere Performance
             response['Cache-Control'] = 'public, max-age=3600'
             response['Content-Disposition'] = 'inline'
             
@@ -183,6 +186,7 @@ class QueueManagementView(generics.GenericAPIView):
                 
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
 
 class DirectVideoView(APIView):
     """Direkter Video-Stream für einfache Frontend-Integration"""

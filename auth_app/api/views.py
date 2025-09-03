@@ -84,18 +84,15 @@ class ActivateAccountView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             if user.is_active:
-                frontend_url = "http://localhost:5500"
-                if request.get_host().startswith('127.0.0.1'):
-                    frontend_url = "http://127.0.0.1:5500"
-                
-                from django.http import HttpResponseRedirect
-                return HttpResponseRedirect(f"{frontend_url}/pages/auth/login.html?message=already_activated")
+                return Response({
+                    'message': 'Account already activated.'
+                }, status=status.HTTP_200_OK)
             
             user.is_active = True
             user.clear_activation_token() 
             user.save()      
-
             frontend_url = "http://localhost:5500"
+            
             if request.get_host().startswith('127.0.0.1'):
                 frontend_url = "http://127.0.0.1:5500"
             

@@ -12,6 +12,7 @@ class VideoAdmin(admin.ModelAdmin):
     search_fields = ['title', 'description']
     ordering = ['-created_at']
     readonly_fields = ['created_at', 'updated_at', 'video_preview']
+    actions = ['create_hls_segments', 'create_hls_segments_all']
     
     fieldsets = (
         ('Basic Information', {
@@ -78,5 +79,61 @@ class VideoAdmin(admin.ModelAdmin):
             return render(request, 'admin/video/video_preview.html', context)
         except Video.DoesNotExist:
             return JsonResponse({'error': 'Video nicht gefunden'}, status=404)
+    
+    def create_hls_segments(self, request, queryset):
+        """Erstellt HLS-Segmente für ausgewählte Videos"""
+        from .services import create_hls_stream
+        
+        success_count = 0
+        error_count = 0
+        
+        for video in queryset:
+            if video.video_file:
+                try:
+                    resolutions = ['480p', '720p', '1080p']
+                    for resolution in resolutions:
+                        result = create_hls_stream(video.video_file.path, video.id, resolution)
+                        if result['success']:
+                            success_count += 1
+                        else:
+                            error_count += 1
+                except Exception as e:
+                    error_count += 1
+            else:
+                error_count += 1
+        
+        if error_count == 0:
+            self.message_user(request, f" HLS-Segmente für {success_count} Videos erfolgreich erstellt!")
+        else:
+            self.message_user(request, f" HLS-Segmente erstellt: {success_count} erfolgreich, {error_count} fehlgeschlagen")
+    
+    create_hls_segments.short_description = "HLS-Segmente für ausgewählte Videos erstellen"
+    
+    def create_hls_segments_all(self, request, queryset):
+        """Erstellt HLS-Segmente für alle Videos"""
+        from .services import create_hls_stream
+        
+        all_videos = Video.objects.filter(video_file__isnull=False)
+        success_count = 0
+        error_count = 0
+        
+        for video in all_videos:
+            try:
+                resolutions = ['480p', '720p', '1080p']
+                for resolution in resolutions:
+                    result = create_hls_stream(video.video_file.path, video.id, resolution)
+                    if result['success']:
+                        success_count += 1
+                    else:
+                        error_count += 1
+            except Exception as e:
+                error_count += 1
+        
+        if error_count == 0:
+            self.message_user(request, f"HLS-Segmente für alle {success_count} Videos erfolgreich erstellt!")
+        else:
+            self.message_user(request, f"HLS-Segmente erstellt: {success_count} erfolgreich, {error_count} fehlgeschlagen")
+    
+    create_hls_segments_all.short_description = "HLS-Segmente für alle Videos erstellen"
 
 

@@ -14,7 +14,11 @@ def send_activation_email(user, request):
     """
     Sendet eine Aktivierungs-E-Mail an den Benutzer
     """
-    activation_url = f"{request.scheme}://{request.get_host()}/api/activate/{user.id}/{user.activation_token}/"
+    frontend_url = "http://localhost:5500"
+    if request.get_host().startswith('127.0.0.1'):
+        frontend_url = "http://127.0.0.1:5500"
+    
+    activation_url = f"{frontend_url}/pages/auth/login.html?message=activation_success&uid={user.id}&token={user.activation_token}"
     
     html_message = render_to_string('video/activation_email.html', {
         'user': user,
