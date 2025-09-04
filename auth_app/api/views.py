@@ -37,13 +37,8 @@ class RegisterView(generics.CreateAPIView):
             serializer.is_valid(raise_exception=True)
             user = serializer.save()
             
-            try:
-                send_activation_email(user, request)
-            except Exception as e:
-                user.delete()
-                return Response({
-                    'error': 'Fehler beim Versenden der Aktivierungs-E-Mail. Bitte versuchen Sie es erneut.'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # E-Mail asynchron versenden (kein try/catch mehr nötig, da asynchron)
+            send_activation_email(user, request)
             
             user_data = UserSerializer(user).data
             response_data = {
