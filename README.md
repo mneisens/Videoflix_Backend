@@ -1,55 +1,71 @@
 # Videoflix Backend
 
-Ein Django-basiertes Backend für eine Video-Streaming-Plattform mit Authentifizierung, Video-Verwaltung und Redis-basierten Aufgaben.
+A Django-based backend for a video streaming platform with authentication, video management, and Redis-based task processing.
 
 ## Features
 
-- **Authentifizierung**: JWT-basierte Benutzerauthentifizierung
-- **Video-Management**: Upload, Verarbeitung und Streaming von Videos
-- **Redis Integration**: Asynchrone Aufgabenverarbeitung mit RQ
-- **PostgreSQL**: Robuste Datenbankunterstützung
-- **Docker**: Einfache Entwicklungsumgebung
-- **REST API**: Vollständige API für Frontend-Integration
+- **Authentication**: JWT-based user authentication
+- **Video Management**: Upload, processing, and streaming of videos
+- **Redis Integration**: Asynchronous task processing with RQ
+- **PostgreSQL**: Robust database support
+- **Docker**: Easy development environment
+- **REST API**: Complete API for frontend integration
+- **HLS Streaming**: Adaptive video streaming with multiple resolutions
 
-## Voraussetzungen
+## Prerequisites
 
-- Docker und Docker Compose
-- Python 3.11+ (für lokale Entwicklung)
+- Docker and Docker Compose
+- Python 3.11+ (for local development)
 - Git
+- Redis (for local development)
 
 ## Installation
 
-### 1. Repository klonen
+### 1. Clone Repository
 ```bash
 git clone https://github.com/mneisens/Videoflix_Backend.git
 cd Videoflix_Backend
 ```
 
-### 3. Mit Docker starten 
+### 2. Docker Setup
 ```bash
-#.env erstellen
+# Create .env file
 cp .env.template .env
 
-# Alle Services starten
+# Start all services
 docker-compose up --build
 
-# Im Hintergrund starten
+# Start in background
 docker-compose up -d --build
 ```
 
-## API-Endpoints
+## API Endpoints
 
-### Authentifizierung
-- `POST /api/auth/register/` - Benutzer registrieren
-- `POST /api/auth/login/` - Benutzer anmelden
-- `POST /api/auth/refresh/` - Token erneuern
-- `POST /api/auth/logout/` - Benutzer abmelden
+### Authentication
+- `POST /api/register/` - Register new user
+- `POST /api/login/` - User login
+- `POST /api/refresh/` - Refresh token
+- `POST /api/logout/` - User logout
+- `GET /api/activate/{user_id}/{token}/` - Activate user account
 
 ### Videos
-- `GET /api/videos/` - Alle Videos abrufen
-- `POST /api/videos/` - Neues Video hochladen
-- `GET /api/videos/{id}/` - Video-Details abrufen
-- `PUT /api/videos/{id}/` - Video bearbeiten
-- `DELETE /api/videos/{id}/` - Video löschen
+- `GET /api/video/` - Get all videos
+- `POST /api/video/` - Upload new video
+- `GET /api/video/{id}/` - Get video details
+- `PUT /api/video/{id}/` - Update video
+- `DELETE /api/video/{id}/` - Delete video
+- `GET /api/video/{id}/{resolution}/index.m3u8` - HLS manifest
+- `GET /api/video/{id}/{resolution}/{segment}` - HLS video segment
+
+## Configuration
+
+### Environment Variables
+- `SECRET_KEY`: Django secret key
+- `DEBUG`: Debug mode (True/False)
+- `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
+- `REDIS_HOST`: Redis host (localhost for local development)
+- `EMAIL_HOST`: SMTP server for email sending
+- `EMAIL_HOST_USER`: SMTP username
+- `EMAIL_HOST_PASSWORD`: SMTP password
 
 
