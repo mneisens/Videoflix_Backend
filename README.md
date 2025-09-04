@@ -57,15 +57,6 @@ docker-compose up -d --build
 - `GET /api/video/{id}/{resolution}/index.m3u8` - HLS manifest
 - `GET /api/video/{id}/{resolution}/{segment}` - HLS video segment
 
-## Configuration
 
-### Environment Variables
-- `SECRET_KEY`: Django secret key
-- `DEBUG`: Debug mode (True/False)
-- `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
-- `REDIS_HOST`: Redis host (localhost for local development)
-- `EMAIL_HOST`: SMTP server for email sending
-- `EMAIL_HOST_USER`: SMTP username
-- `EMAIL_HOST_PASSWORD`: SMTP password
 
 
