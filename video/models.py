@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.core.cache import cache
 
@@ -70,23 +70,29 @@ class Video(models.Model):
 @receiver(post_save, sender=Video)
 def create_hls_segments_on_video_save(sender, instance, created, **kwargs):
     """
-    Signal-Handler: Erstellt automatisch HLS-Segmente wenn ein Video gespeichert wird
+    Signal-Handler: Erstellt automatisch HLS-Segmente asynchron wenn ein Video gespeichert wird
     """
     if instance.video_file and instance.video_file.name:
         try:
-            from .services import create_hls_stream
-            resolutions = ['480p', '720p', '1080p']
+            from .tasks import process_multiple_resolutions
             
-            for resolution in resolutions:
-                try:
-                    result = create_hls_stream(instance.video_file.path, instance.id, resolution)
-                    if result['success']:
-                        print(f" HLS-Segmente für Video {instance.id} ({resolution}) erfolgreich erstellt")
-                    else:
-                        print(f" Fehler beim Erstellen der HLS-Segmente für Video {instance.id} ({resolution}): {result['error']}")
-                except Exception as e:
-                    print(f" Exception beim Erstellen der HLS-Segmente für Video {instance.id} ({resolution}): {str(e)}")
+            # HLS-Segmente asynchron erstellen
+            process_multiple_resolutions.delay(instance.id, ['480p', '720p', '1080p'])
+            print(f"HLS-Segmente für Video {instance.id} werden asynchron erstellt")
+            
             cache.delete('video_list_public')
             
         except Exception as e:
             print(f"Fehler im Signal-Handler für Video {instance.id}: {str(e)}")
+
+
+@receiver(post_delete, sender=Video)
+def clear_cache_on_video_delete(sender, instance, **kwargs):
+    """
+    Signal-Handler: Leert den Cache wenn ein Video gelöscht wird
+    """
+    try:
+        cache.delete('video_list_public')
+        print(f"Cache geleert nach Löschung von Video {instance.id}")
+    except Exception as e:
+        print(f"Fehler beim Leeren des Caches nach Video-Löschung: {str(e)}")

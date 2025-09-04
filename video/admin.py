@@ -12,7 +12,7 @@ class VideoAdmin(admin.ModelAdmin):
     search_fields = ['title', 'description']
     ordering = ['-created_at']
     readonly_fields = ['created_at', 'updated_at', 'video_preview']
-    actions = ['create_hls_segments', 'create_hls_segments_all']
+    actions = ['create_hls_segments', 'create_hls_segments_all', 'delete_selected_videos', 'clear_video_cache']
     
     fieldsets = (
         ('Basic Information', {
@@ -81,8 +81,8 @@ class VideoAdmin(admin.ModelAdmin):
             return JsonResponse({'error': 'Video nicht gefunden'}, status=404)
     
     def create_hls_segments(self, request, queryset):
-        """Erstellt HLS-Segmente für ausgewählte Videos"""
-        from .services import create_hls_stream
+        """Erstellt HLS-Segmente asynchron für ausgewählte Videos"""
+        from .tasks import process_multiple_resolutions
         
         success_count = 0
         error_count = 0
@@ -90,28 +90,24 @@ class VideoAdmin(admin.ModelAdmin):
         for video in queryset:
             if video.video_file:
                 try:
-                    resolutions = ['480p', '720p', '1080p']
-                    for resolution in resolutions:
-                        result = create_hls_stream(video.video_file.path, video.id, resolution)
-                        if result['success']:
-                            success_count += 1
-                        else:
-                            error_count += 1
+                    # HLS-Segmente asynchron erstellen
+                    process_multiple_resolutions.delay(video.id, ['480p', '720p', '1080p'])
+                    success_count += 1
                 except Exception as e:
                     error_count += 1
             else:
                 error_count += 1
         
         if error_count == 0:
-            self.message_user(request, f" HLS-Segmente für {success_count} Videos erfolgreich erstellt!")
+            self.message_user(request, f"HLS-Segmente für {success_count} Videos werden asynchron erstellt!")
         else:
-            self.message_user(request, f" HLS-Segmente erstellt: {success_count} erfolgreich, {error_count} fehlgeschlagen")
+            self.message_user(request, f"HLS-Segmente werden erstellt: {success_count} Videos in Queue, {error_count} fehlgeschlagen")
     
     create_hls_segments.short_description = "HLS-Segmente für ausgewählte Videos erstellen"
     
     def create_hls_segments_all(self, request, queryset):
-        """Erstellt HLS-Segmente für alle Videos"""
-        from .services import create_hls_stream
+        """Erstellt HLS-Segmente asynchron für alle Videos"""
+        from .tasks import process_multiple_resolutions
         
         all_videos = Video.objects.filter(video_file__isnull=False)
         success_count = 0
@@ -119,21 +115,39 @@ class VideoAdmin(admin.ModelAdmin):
         
         for video in all_videos:
             try:
-                resolutions = ['480p', '720p', '1080p']
-                for resolution in resolutions:
-                    result = create_hls_stream(video.video_file.path, video.id, resolution)
-                    if result['success']:
-                        success_count += 1
-                    else:
-                        error_count += 1
+                # HLS-Segmente asynchron erstellen
+                process_multiple_resolutions.delay(video.id, ['480p', '720p', '1080p'])
+                success_count += 1
             except Exception as e:
                 error_count += 1
         
         if error_count == 0:
-            self.message_user(request, f"HLS-Segmente für alle {success_count} Videos erfolgreich erstellt!")
+            self.message_user(request, f"HLS-Segmente für alle {success_count} Videos werden asynchron erstellt!")
         else:
-            self.message_user(request, f"HLS-Segmente erstellt: {success_count} erfolgreich, {error_count} fehlgeschlagen")
+            self.message_user(request, f"HLS-Segmente werden erstellt: {success_count} Videos in Queue, {error_count} fehlgeschlagen")
     
     create_hls_segments_all.short_description = "HLS-Segmente für alle Videos erstellen"
+    
+    def delete_selected_videos(self, request, queryset):
+        """Löscht ausgewählte Videos und leert den Cache"""
+        from django.core.cache import cache
+        
+        count = queryset.count()
+        queryset.delete()
+        
+        cache.delete('video_list_public')
+        
+        self.message_user(request, f"{count} Videos wurden gelöscht und Cache wurde geleert.")
+    
+    delete_selected_videos.short_description = "Ausgewählte Videos löschen und Cache leeren"
+    
+    def clear_video_cache(self, request, queryset):
+        """Leert den Video-Cache manuell"""
+        from django.core.cache import cache
+        
+        cache.delete('video_list_public')
+        self.message_user(request, "Video-Cache wurde geleert.")
+    
+    clear_video_cache.short_description = "Video-Cache leeren"
 
 
