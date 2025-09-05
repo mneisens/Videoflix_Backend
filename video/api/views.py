@@ -50,15 +50,14 @@ class VideoListView(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         try:
+            # Cache leeren für Debugging
             cache_key = 'video_list_public'
-            cached_data = cache.get(cache_key)
+            cache.delete(cache_key)
             
-            if cached_data is None:
-                response = super().get(request, *args, **kwargs)
-                cache.set(cache_key, response.data, 300)
-                return response
-            
-            return Response(cached_data)
+            # Direkte DB-Abfrage ohne Cache
+            videos = Video.objects.all().order_by('-created_at')
+            serializer = VideoSerializer(videos, many=True, context={'request': request})
+            return Response(serializer.data)
         except Exception as e:
             try:
                 videos = Video.objects.all().order_by('-created_at')
@@ -72,7 +71,7 @@ class HLSManifestView(generics.GenericAPIView):
     """
     HLS-Manifest für einen bestimmten Film und eine gewählte Auflösung
     """
-    permission_classes = [CookieOrAuthenticatedPermission]
+    permission_classes = [AllowAny]
     
     def get(self, request, movie_id, resolution):
         try:
@@ -127,7 +126,7 @@ class HLSVideoSegmentView(generics.GenericAPIView):
     """
     HLS-Videosegment für einen bestimmten Film in gewählter Auflösung
     """
-    permission_classes = [CookieOrAuthenticatedPermission]  # Cookie-basierte Auth
+    permission_classes = [AllowAny]  # Öffentlich zugänglich
     
     def get(self, request, movie_id, resolution, segment):
         try:
