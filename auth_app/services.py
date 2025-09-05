@@ -62,8 +62,9 @@ def send_password_reset_email(user, request):
     try:
         logger.info(f"Starte synchronen Passwort-Reset-E-Mail-Versand für: {user.email}")
         
-        backend_url = f"{request.scheme}://{request.get_host()}"
-        reset_url = f"{backend_url}/api/password_confirm/{user.id}/{user.password_reset_token}/"
+
+        frontend_url = "http://localhost:5500"  
+        reset_url = f"{frontend_url}/pages/auth/confirm_password.html?uid={user.id}&token={user.password_reset_token}"
         logger.info(f"Reset-URL: {reset_url}")
         
         html_message = render_to_string('video/password_reset_email.html', {
