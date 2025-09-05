@@ -46,7 +46,7 @@ class VideoListView(generics.ListAPIView):
     """
     queryset = Video.objects.all().order_by('-created_at')
     serializer_class = VideoSerializer
-    permission_classes = [CookieOrAuthenticatedPermission] 
+    permission_classes = [AllowAny] 
 
     def get(self, request, *args, **kwargs):
         try:

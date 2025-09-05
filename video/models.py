@@ -70,16 +70,27 @@ class Video(models.Model):
 @receiver(post_save, sender=Video)
 def create_hls_segments_on_video_save(sender, instance, created, **kwargs):
     """
-    Signal-Handler: Erstellt automatisch HLS-Segmente asynchron wenn ein Video gespeichert wird
+    Signal-Handler: Erstellt automatisch HLS-Segmente synchron wenn ein Video gespeichert wird
     """
     if instance.video_file and instance.video_file.name:
         try:
-            from .tasks import process_multiple_resolutions
+            from .services import create_hls_stream
+            import os
             
-            process_multiple_resolutions.delay(instance.id, ['480p', '720p', '1080p'])
-            print(f"HLS-Segmente für Video {instance.id} werden asynchron erstellt")
+            resolutions = ['480p', '720p', '1080p']
+            video_path = instance.video_file.path
             
-            cache.delete('video_list_public')
+            if os.path.exists(video_path):
+                for resolution in resolutions:
+                    result = create_hls_stream(video_path, instance.id, resolution)
+                    if result.get('success'):
+                        print(f"HLS-Segmente für Video {instance.id} ({resolution}) erfolgreich erstellt")
+                    else:
+                        print(f"Fehler beim Erstellen der HLS-Segmente für Video {instance.id} ({resolution}): {result.get('error')}")
+                
+                cache.delete('video_list_public')
+            else:
+                print(f"Video-Datei nicht gefunden: {video_path}")
             
         except Exception as e:
             print(f"Fehler im Signal-Handler für Video {instance.id}: {str(e)}")
