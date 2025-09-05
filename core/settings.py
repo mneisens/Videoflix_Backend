@@ -351,6 +351,3 @@ CACHES = {
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Fallback auf Datenbank
 SESSION_CACHE_ALIAS = 'default'
 
-# RQ Settings
-RQ_SHOW_ADMIN_LINK = True
-RQ_EXCEPTION_HANDLERS = ['video.tasks.handle_failed_job']
