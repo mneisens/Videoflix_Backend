@@ -14,7 +14,6 @@ def send_activation_email(user, request):
     try:
         logger.info(f"Starte synchronen E-Mail-Versand für Benutzer: {user.email}")
         
-        # Backend-URL für Aktivierung generieren
         backend_url = f"{request.scheme}://{request.get_host()}"
         activation_url = f"{backend_url}/api/activate/{user.id}/{user.activation_token}/"
         logger.info(f"Aktivierungs-URL: {activation_url}")
@@ -25,7 +24,6 @@ def send_activation_email(user, request):
         })
         plain_message = strip_tags(html_message)
         
-        # E-Mail-Konfiguration loggen
         logger.info(f"E-Mail-Konfiguration:")
         logger.info(f"  EMAIL_HOST: {settings.EMAIL_HOST}")
         logger.info(f"  EMAIL_PORT: {settings.EMAIL_PORT}")
