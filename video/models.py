@@ -76,7 +76,6 @@ def create_hls_segments_on_video_save(sender, instance, created, **kwargs):
         try:
             from .tasks import process_multiple_resolutions
             
-            # HLS-Segmente asynchron erstellen
             process_multiple_resolutions.delay(instance.id, ['480p', '720p', '1080p'])
             print(f"HLS-Segmente für Video {instance.id} werden asynchron erstellt")
             

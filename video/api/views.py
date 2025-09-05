@@ -35,7 +35,7 @@ class CookieOrAuthenticatedPermission(BasePermission):
 from django.http import HttpResponse, HttpResponseRedirect, FileResponse, JsonResponse
 from .serializers import VideoSerializer
 from ..models import Video
-from ..services import ensure_hls_stream, get_hls_segments, get_queue_status, clear_all_queues
+from ..services import ensure_hls_stream, get_hls_segments
 from auth_app.api.authentication import CustomJWTAuthentication
 from django.conf import settings
 from django.core.cache import cache
@@ -152,40 +152,6 @@ class HLSVideoSegmentView(generics.GenericAPIView):
             
         except Exception as e:
             return JsonResponse({'error': f'Fehler beim Laden des Segments: {str(e)}'}, status=500)
-
-
-class QueueStatusView(generics.GenericAPIView):
-    """
-    Status der RQ-Queues
-    """
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        try:
-            status_info = get_queue_status()
-            return JsonResponse(status_info)
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-
-
-class QueueManagementView(generics.GenericAPIView):
-    """
-    Queue-Management (nur für Development/Testing)
-    """
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        try:
-            action = request.data.get('action')
-            
-            if action == 'clear_all':
-                result = clear_all_queues()
-                return JsonResponse(result)
-            else:
-                return JsonResponse({'error': 'Unbekannte Aktion'}, status=400)
-                
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
 
 
 class DirectVideoView(APIView):

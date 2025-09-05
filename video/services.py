@@ -1,65 +1,9 @@
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
-from django.conf import settings
-import uuid
 import os
 import subprocess
 import json
 from pathlib import Path
-from django_rq import get_queue
+from django.conf import settings
 from .models import Video
-
-def send_activation_email(user, request):
-    """
-    Sendet eine Aktivierungs-E-Mail an den Benutzer
-    """
-    frontend_url = "http://localhost:5500"
-    if request.get_host().startswith('127.0.0.1'):
-        frontend_url = "http://127.0.0.1:5500"
-    
-    activation_url = f"{frontend_url}/pages/auth/login.html?message=activation_success&uid={user.id}&token={user.activation_token}"
-    
-    html_message = render_to_string('video/activation_email.html', {
-        'user': user,
-        'activation_url': activation_url,
-    })
-    plain_message = strip_tags(html_message)
-    
-    send_mail(
-        subject='Videoflix - Aktivieren Sie Ihr Konto',
-        message=plain_message,
-        from_email=settings.DEFAULT_FROM_EMAIL or 'noreply@videoflix.com',
-        recipient_list=[user.email],
-        html_message=html_message,
-        fail_silently=False,
-    )
-
-def send_password_reset_email(user, request):
-    """
-    Sendet eine Passwort-Reset-E-Mail an den Benutzer
-    """
-    frontend_url = "http://localhost:5500"
-    if request.get_host().startswith('127.0.0.1'):
-        frontend_url = "http://127.0.0.1:5500"
-    
-    reset_url = f"{frontend_url}/pages/auth/confirm_password.html?uid={user.id}&token={user.password_reset_token}"
-    
-    html_message = render_to_string('video/password_reset_email.html', {
-        'user': user,
-        'reset_url': reset_url,
-    })
-    
-    plain_message = strip_tags(html_message)
-    
-    send_mail(
-        subject='Videoflix - Passwort zurücksetzen',
-        message=plain_message,
-        from_email=settings.DEFAULT_FROM_EMAIL or 'noreply@videoflix.com',
-        recipient_list=[user.email],
-        html_message=html_message,
-        fail_silently=False,
-    )
 
 def create_hls_stream(video_file_path, video_id, resolution='720p'):
     """
@@ -149,52 +93,4 @@ def ensure_hls_stream(video_file_path, video_id, resolution='720p'):
     if existing_stream:
         return existing_stream
     
-    queue = get_queue('default')
-    job = queue.enqueue(
-        create_hls_stream,
-        video_file_path,
-        video_id,
-        resolution,
-        timeout=600  
-    )
     return create_hls_stream(video_file_path, video_id, resolution)
-
-
-def get_queue_status():
-    """
-    Gibt den Status der RQ-Queues zurück
-    """
-    try:
-        queue = get_queue('default')
-        return {
-            'queue_name': 'default',
-            'job_count': len(queue),
-            'workers': len(queue.workers)
-        }
-    except Exception as e:
-        return {
-            'error': str(e)
-        }
-
-
-def clear_all_queues():
-    """
-    Löscht alle Jobs aus allen Queues (nützlich für Development/Testing)
-    """
-    try:
-        from django_rq import get_queue
-        
-        queues = ['default', 'high', 'low']
-        for queue_name in queues:
-            queue = get_queue(queue_name)
-            queue.empty()
-        
-        return {
-            'success': True,
-            'message': f'All queues cleared: {", ".join(queues)}'
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'error': str(e)
-        }

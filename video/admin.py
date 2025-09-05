@@ -90,7 +90,6 @@ class VideoAdmin(admin.ModelAdmin):
         for video in queryset:
             if video.video_file:
                 try:
-                    # HLS-Segmente asynchron erstellen
                     process_multiple_resolutions.delay(video.id, ['480p', '720p', '1080p'])
                     success_count += 1
                 except Exception as e:
@@ -115,7 +114,6 @@ class VideoAdmin(admin.ModelAdmin):
         
         for video in all_videos:
             try:
-                # HLS-Segmente asynchron erstellen
                 process_multiple_resolutions.delay(video.id, ['480p', '720p', '1080p'])
                 success_count += 1
             except Exception as e:
