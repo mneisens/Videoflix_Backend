@@ -39,6 +39,7 @@ def send_activation_email(user, request):
             recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False,
+            connection=None,  
         )
         
         logger.info(f"E-Mail-Versand erfolgreich: {result}")
@@ -78,6 +79,7 @@ def send_password_reset_email(user, request):
             recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False,
+            connection=None, 
         )
         
         logger.info(f"Passwort-Reset-E-Mail erfolgreich gesendet: {result}")

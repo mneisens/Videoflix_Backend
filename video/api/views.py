@@ -126,7 +126,7 @@ class HLSVideoSegmentView(generics.GenericAPIView):
     """
     HLS-Videosegment für einen bestimmten Film in gewählter Auflösung
     """
-    permission_classes = [AllowAny]  # Öffentlich zugänglich
+    permission_classes = [AllowAny]
     
     def get(self, request, movie_id, resolution, segment):
         try:
