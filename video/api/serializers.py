@@ -1,8 +1,13 @@
+import os
 from rest_framework import serializers
-from ..models import Video
 from django.conf import settings
+from ..models import Video
+
 
 class VideoSerializer(serializers.ModelSerializer):
+    """
+    Serializer für Video-Objekte mit intelligenter Thumbnail-Verarbeitung
+    """
     thumbnail_url = serializers.SerializerMethodField()
     
     class Meta:
@@ -18,42 +23,59 @@ class VideoSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
     
     def get_thumbnail_url(self, obj):
+        """
+        Gibt die Thumbnail-URL mit folgender Priorität zurück:
+        1. Externe Thumbnail-URL (höchste Priorität)
+        2. Manuell hochgeladenes Thumbnail
+        3. Automatisch generiertes Video-Frame
+        4. Kategorie-spezifisches Default-Thumbnail
+        """
         try:
-            if obj.thumbnail:
-                if not obj.thumbnail.url.startswith('http'):
-                    base_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
-                    return f"{base_url}{obj.thumbnail.url}"
-                else:
-                    return obj.thumbnail.url
-            
             if obj.thumbnail_url:
                 return obj.thumbnail_url
             
-            auto_thumbnail_path = f"thumbnails/video_{obj.id}_thumbnail.jpg"
-            import os
-            if os.path.exists(os.path.join(settings.MEDIA_ROOT, auto_thumbnail_path)):
-                base_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
-                return f"{base_url}/media/{auto_thumbnail_path}"
+            if obj.thumbnail:
+                return self._build_absolute_url(obj.thumbnail.url)
+            
+            auto_thumbnail = self._get_auto_thumbnail_url(obj.id)
+            if auto_thumbnail:
+                return auto_thumbnail
             
             return self._get_default_thumbnail_url(obj.category)
+            
         except Exception as e:
-            print(f"Fehler in get_thumbnail_url für Video {obj.id}: {e}")
             return self._get_default_thumbnail_url(obj.category)
     
+    def _build_absolute_url(self, relative_url):
+        """Baut eine absolute URL aus einer relativen URL"""
+        if relative_url.startswith('http'):
+            return relative_url
+        
+        base_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
+        return f"{base_url}{relative_url}"
+    
+    def _get_auto_thumbnail_url(self, video_id):
+        """Prüft ob ein automatisch generiertes Thumbnail existiert"""
+        auto_thumbnail_path = f"thumbnails/video_{video_id}_thumbnail.jpg"
+        full_path = os.path.join(settings.MEDIA_ROOT, auto_thumbnail_path)
+        
+        if os.path.exists(full_path):
+            base_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
+            return f"{base_url}/media/{auto_thumbnail_path}"
+        
+        return None
+    
     def _get_default_thumbnail_url(self, category):
-        """Gibt eine Standard-Thumbnail-URL basierend auf der Kategorie zurück"""
+        """
+        Gibt eine Standard-Thumbnail-URL basierend auf der Kategorie zurück
+        """
         base_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
         
         category_thumbnails = {
-            'action': f"{base_url}/static/images/default_thumbnails/action.svg",
-            'comedy': f"{base_url}/static/images/default_thumbnails/comedy.svg", 
-            'drama': f"{base_url}/static/images/default_thumbnails/drama.svg",
-            'horror': f"{base_url}/static/images/default_thumbnails/default.svg",
-            'romance': f"{base_url}/static/images/default_thumbnails/default.svg",
-            'sci-fi': f"{base_url}/static/images/default_thumbnails/default.svg",
-            'thriller': f"{base_url}/static/images/default_thumbnails/default.svg",
-            'documentary': f"{base_url}/static/images/default_thumbnails/default.svg",
-            'animation': f"{base_url}/static/images/default_thumbnails/default.svg",
+            'action': 'action.svg',
+            'comedy': 'comedy.svg', 
+            'drama': 'drama.svg',
         }
         
-        return category_thumbnails.get(category, f"{base_url}/static/images/default_thumbnails/default.svg")
+        thumbnail_file = category_thumbnails.get(category, 'default.svg')
+        return f"{base_url}/static/images/default_thumbnails/{thumbnail_file}"

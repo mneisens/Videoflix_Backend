@@ -37,7 +37,6 @@ class RegisterView(generics.CreateAPIView):
             serializer.is_valid(raise_exception=True)
             user = serializer.save()
             
-            # E-Mail asynchron versenden (kein try/catch mehr nötig, da asynchron)
             send_activation_email(user, request)
             
             user_data = UserSerializer(user).data

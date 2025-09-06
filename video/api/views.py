@@ -1,44 +1,14 @@
 import os
-import re
 from pathlib import Path
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
-
-class CookieOrAuthenticatedPermission(BasePermission):
-    """
-    Erlaubt Zugriff wenn:
-    1. Benutzer ist authentifiziert (JWT-Token im Header)
-    2. ODER gültiger access_token Cookie ist vorhanden
-    """
-    
-    def has_permission(self, request, view):
-        if request.user.is_authenticated:
-            return True
-
-        access_token = request.COOKIES.get('access_token')
-        if access_token:
-            try:
-                from auth_app.api.authentication import CustomJWTAuthentication
-                auth = CustomJWTAuthentication()
-                user, token = auth.authenticate(request)
-                if user:
-                    request.user = user
-                    return True
-            except:
-                pass
-        
-        return False
 from django.http import HttpResponse, HttpResponseRedirect, FileResponse, JsonResponse
 from .serializers import VideoSerializer
 from ..models import Video
-from ..services import ensure_hls_stream, get_hls_segments
-from auth_app.api.authentication import CustomJWTAuthentication
 from django.conf import settings
-from django.core.cache import cache
 
 class VideoListView(generics.ListAPIView):
     """
@@ -50,21 +20,11 @@ class VideoListView(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            # Cache leeren für Debugging
-            cache_key = 'video_list_public'
-            cache.delete(cache_key)
-            
-            # Direkte DB-Abfrage ohne Cache
             videos = Video.objects.all().order_by('-created_at')
             serializer = VideoSerializer(videos, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
-            try:
-                videos = Video.objects.all().order_by('-created_at')
-                serializer = VideoSerializer(videos, many=True, context={'request': request})
-                return Response(serializer.data)
-            except Exception as fallback_error:
-                return Response([], status=200)
+            return Response([], status=200)
 
 
 class HLSManifestView(generics.GenericAPIView):
