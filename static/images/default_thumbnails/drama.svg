@@ -1,0 +1,26 @@
+<svg width="320" height="180" viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hintergrund - Drama Theme -->
+  <rect width="320" height="180" fill="#1a1a1a"/>
+  <rect x="0" y="120" width="320" height="60" fill="#2d2d2d"/>
+  
+  <!-- Theater-Maske -->
+  <g transform="translate(160, 70)">
+    <ellipse cx="0" cy="0" rx="30" ry="25" fill="#4a4a4a" stroke="#666" stroke-width="2"/>
+    <!-- Augen -->
+    <ellipse cx="-10" cy="-5" rx="6" ry="8" fill="#333"/>
+    <ellipse cx="10" cy="-5" rx="6" ry="8" fill="#333"/>
+    <!-- Mund -->
+    <path d="M -8 8 Q 0 15 8 8" stroke="#333" stroke-width="2" fill="none"/>
+  </g>
+  
+  <!-- Video-Symbol -->
+  <g transform="translate(160, 90)">
+    <circle cx="0" cy="0" r="20" fill="#333" stroke="#888" stroke-width="2"/>
+    <polygon points="-5,-8 -5,8 8,0" fill="#888"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="160" y="140" text-anchor="middle" fill="#bbb" font-family="Arial, sans-serif" font-size="12" font-weight="bold">
+    DRAMA
+  </text>
+</svg>

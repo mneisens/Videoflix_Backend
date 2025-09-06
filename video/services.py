@@ -94,3 +94,52 @@ def ensure_hls_stream(video_file_path, video_id, resolution='720p'):
         return existing_stream
     
     return create_hls_stream(video_file_path, video_id, resolution)
+
+
+def extract_video_thumbnail(video_file_path, video_id, timestamp='00:00:01'):
+    """
+    Extrahiert ein Thumbnail aus dem Video mit FFmpeg
+    """
+    try:
+        thumbnail_dir = Path(settings.MEDIA_ROOT) / 'thumbnails'
+        thumbnail_dir.mkdir(parents=True, exist_ok=True)
+        
+        thumbnail_filename = f"video_{video_id}_thumbnail.jpg"
+        thumbnail_path = thumbnail_dir / thumbnail_filename
+        
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-i', str(video_file_path),
+            '-ss', timestamp, 
+            '-vframes', '1', 
+            '-q:v', '2',       
+            '-vf', 'scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2',
+            '-y',             
+            str(thumbnail_path)
+        ]
+        
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            timeout=60 
+        )
+        
+        if result.returncode == 0 and thumbnail_path.exists():
+            relative_path = f"thumbnails/{thumbnail_filename}"
+            return {
+                'success': True,
+                'thumbnail_path': relative_path,
+                'full_path': str(thumbnail_path)
+            }
+        else:
+            return {
+                'success': False,
+                'error': result.stderr or 'Thumbnail konnte nicht erstellt werden'
+            }
+            
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }

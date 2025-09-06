@@ -74,19 +74,36 @@ def create_hls_segments_on_video_save(sender, instance, created, **kwargs):
     """
     if instance.video_file and instance.video_file.name:
         try:
-            from .services import create_hls_stream
+            from .services import create_hls_stream, extract_video_thumbnail
             import os
             
-            resolutions = ['480p', '720p', '1080p']
             video_path = instance.video_file.path
             
             if os.path.exists(video_path):
+                resolutions = ['480p', '720p', '1080p']
                 for resolution in resolutions:
                     result = create_hls_stream(video_path, instance.id, resolution)
                     if result.get('success'):
                         print(f"HLS-Segmente für Video {instance.id} ({resolution}) erfolgreich erstellt")
                     else:
                         print(f"Fehler beim Erstellen der HLS-Segmente für Video {instance.id} ({resolution}): {result.get('error')}")
+                
+                if created and (not instance.thumbnail and not instance.thumbnail_url):
+                    thumbnail_result = extract_video_thumbnail(video_path, instance.id)
+                    if thumbnail_result.get('success'):
+                        instance.thumbnail = thumbnail_result['thumbnail_path']
+                        instance.save(update_fields=['thumbnail'])
+                        print(f"Thumbnail für Video {instance.id} erfolgreich erstellt: {thumbnail_result['thumbnail_path']}")
+                    else:
+                        print(f"Fehler beim Erstellen des Thumbnails für Video {instance.id}: {thumbnail_result.get('error')}")
+                elif not created and (not instance.thumbnail and not instance.thumbnail_url):
+                    thumbnail_result = extract_video_thumbnail(video_path, instance.id)
+                    if thumbnail_result.get('success'):
+                        instance.thumbnail = thumbnail_result['thumbnail_path']
+                        instance.save(update_fields=['thumbnail'])
+                        print(f"Thumbnail für Video {instance.id} erfolgreich erstellt: {thumbnail_result['thumbnail_path']}")
+                    else:
+                        print(f"Fehler beim Erstellen des Thumbnails für Video {instance.id}: {thumbnail_result.get('error')}")
                 
                 cache.delete('video_list_public')
             else:
