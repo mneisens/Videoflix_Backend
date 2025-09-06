@@ -1,18 +1,23 @@
-import os
-from pathlib import Path
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse, HttpResponseRedirect, FileResponse, JsonResponse
 from .serializers import VideoSerializer
 from ..models import Video
-from django.conf import settings
+from ..utils import (
+    get_video_list, create_hls_manifest_content, create_external_video_manifest,
+    create_empty_manifest, get_hls_segment_path, validate_hls_directory,
+    validate_segment_file, create_segment_response, get_active_video,
+    create_direct_video_response, create_redirect_response,
+    create_video_not_found_response, create_video_error_response,
+    create_segment_error_response
+)
 
 class VideoListView(generics.ListAPIView):
     """
-    Gibt eine Liste aller verfügbaren Videos zurück
+    Returns a list of all available videos
     """
     queryset = Video.objects.all().order_by('-created_at')
     serializer_class = VideoSerializer
@@ -20,7 +25,7 @@ class VideoListView(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         try:
-            videos = Video.objects.all().order_by('-created_at')
+            videos = get_video_list()
             serializer = VideoSerializer(videos, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
@@ -29,7 +34,7 @@ class VideoListView(generics.ListAPIView):
 
 class HLSManifestView(generics.GenericAPIView):
     """
-    HLS-Manifest für einen bestimmten Film und eine gewählte Auflösung
+    HLS manifest for a specific movie and selected resolution
     """
     permission_classes = [AllowAny]
     
@@ -38,110 +43,68 @@ class HLSManifestView(generics.GenericAPIView):
             video = get_object_or_404(Video, id=movie_id)
             
             if video.video_file:
+                from django.conf import settings
                 video_url = f"{settings.SITE_URL}{video.video_file.url}"
-                
-                manifest_content = f"""#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:10
-#EXT-X-MEDIA-SEQUENCE:0
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXTINF:10.0,
-{video_url}
-#EXT-X-ENDLIST
-"""
+                manifest_content = create_hls_manifest_content(video_url)
                 return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
             
             elif video.video_url and not video.video_url.startswith(f'/api/video/{movie_id}'):
-                manifest_content = f"""#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION={resolution}
-{video.video_url}
-"""
+                manifest_content = create_external_video_manifest(video.video_url, resolution)
                 return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
             
             else:
-                manifest_content = """#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:10
-#EXT-X-MEDIA-SEQUENCE:0
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXTINF:10.0,
-#EXT-X-ENDLIST
-"""
+                manifest_content = create_empty_manifest()
                 return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
                 
         except Exception as e:
-            manifest_content = """#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:10
-#EXT-X-MEDIA-SEQUENCE:0
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXTINF:10.0,
-#EXT-X-ENDLIST
-"""
+            manifest_content = create_empty_manifest()
             return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
 
 
 class HLSVideoSegmentView(generics.GenericAPIView):
     """
-    HLS-Videosegment für einen bestimmten Film in gewählter Auflösung
+    HLS video segment for a specific movie in selected resolution
     """
     permission_classes = [AllowAny]
     
     def get(self, request, movie_id, resolution, segment):
         try:
+            from pathlib import Path
+            from django.conf import settings
+            
             hls_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(movie_id) / resolution
-            segment_path = hls_dir / segment
+            segment_path = get_hls_segment_path(movie_id, resolution, segment)
 
-            if not hls_dir.exists():
-                return JsonResponse({'error': f'HLS-Verzeichnis nicht gefunden: {hls_dir}'}, status=404)
+            directory_error = validate_hls_directory(hls_dir)
+            if directory_error:
+                return directory_error
             
-            if not segment_path.exists():
-                return JsonResponse({'error': f'Segment nicht gefunden: {segment_path}'}, status=404)
+            segment_error = validate_segment_file(segment_path)
+            if segment_error:
+                return segment_error
             
-            response = FileResponse(
-                open(segment_path, 'rb'),
-                content_type='video/MP2T'
-            )
-            
-            response['Cache-Control'] = 'public, max-age=3600'
-            response['Content-Disposition'] = 'inline'
-            
-            return response
+            return create_segment_response(segment_path)
             
         except Exception as e:
-            return JsonResponse({'error': f'Fehler beim Laden des Segments: {str(e)}'}, status=500)
+            return create_segment_error_response(str(e))
 
 
 class DirectVideoView(APIView):
-    """Direkter Video-Stream für einfache Frontend-Integration"""
+    """Direct video stream for simple frontend integration"""
     permission_classes = [AllowAny]
     
     def get(self, request, video_id):
         try:
-            video = get_object_or_404(Video, id=video_id, is_active=True)
+            video = get_active_video(video_id)
             
             if video.video_file:
-                response = FileResponse(video.video_file, content_type='video/mp4')
-                response['Access-Control-Allow-Origin'] = '*'
-                response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-                response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-                response['Accept-Ranges'] = 'bytes'
-                return response
+                return create_direct_video_response(video.video_file)
             
             elif video.video_url:
-                response = HttpResponseRedirect(video.video_url)
-                response['Access-Control-Allow-Origin'] = '*'
-                response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-                response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-                return response
+                return create_redirect_response(video.video_url)
             
             else:
-                return Response({
-                    'error': 'Kein Video verfügbar.'
-                }, status=status.HTTP_404_NOT_FOUND)
+                return create_video_not_found_response()
                 
         except Exception as e:
-            return Response({
-                'error': f'Fehler beim Laden des Videos: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return create_video_error_response(str(e))

@@ -6,7 +6,7 @@ import uuid
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
-            raise ValueError('Die E-Mail-Adresse ist erforderlich.')
+            raise ValueError('The email address is required.')
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         if password:
@@ -20,9 +20,9 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_active', True)
         
         if extra_fields.get('is_staff') is not True:
-            raise ValueError('Superuser muss is_staff=True haben.')
+            raise ValueError('Superuser must have is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser muss is_superuser=True haben.')
+            raise ValueError('Superuser must have is_superuser=True.')
         
         return self.create_user(email, password, **extra_fields)
 
@@ -43,39 +43,39 @@ class CustomUser(AbstractUser):
         return self.email
     
     def generate_activation_token(self):
-        """Generiert einen neuen Aktivierungstoken"""
+        """Generates a new activation token"""
         self.activation_token = uuid.uuid4()
         self.activation_token_created = timezone.now()
         self.save()
         return self.activation_token
     
     def is_activation_token_expired(self):
-        """Prüft ob der Aktivierungstoken abgelaufen ist (24 Stunden)"""
+        """Checks if the activation token is expired (24 hours)"""
         if not self.activation_token_created:
             return True
         return timezone.now() > self.activation_token_created + timezone.timedelta(hours=24)
     
     def clear_activation_token(self):
-        """Löscht den Aktivierungstoken"""
+        """Clears the activation token"""
         self.activation_token = None
         self.activation_token_created = None
         self.save()
     
     def generate_password_reset_token(self):
-        """Generiert einen neuen Passwort-Reset-Token"""
+        """Generates a new password reset token"""
         self.password_reset_token = uuid.uuid4()
         self.password_reset_token_created = timezone.now()
         self.save()
         return self.password_reset_token
     
     def is_password_reset_token_expired(self):
-        """Prüft ob der Passwort-Reset-Token abgelaufen ist (1 Stunde)"""
+        """Checks if the password reset token is expired (1 hour)"""
         if not self.password_reset_token_created:
             return True
         return timezone.now() > self.password_reset_token_created + timezone.timedelta(hours=1)
     
     def clear_password_reset_token(self):
-        """Löscht den Passwort-Reset-Token"""
+        """Clears the password reset token"""
         self.password_reset_token = None
         self.password_reset_token_created = None
         self.save()

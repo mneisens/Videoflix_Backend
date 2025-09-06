@@ -7,7 +7,7 @@ from .models import Video
 
 def create_hls_stream(video_file_path, video_id, resolution='720p'):
     """
-    Konvertiert eine MP4-Datei in einen HLS-Stream
+    Converts an MP4 file to an HLS stream
     """
     try:
         hls_output_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(video_id) / resolution
@@ -58,7 +58,7 @@ def create_hls_stream(video_file_path, video_id, resolution='720p'):
 
 def get_hls_segments(video_id, resolution='720p'):
     """
-    Gibt die Liste der HLS-Segmente zurück
+    Returns the list of HLS segments
     """
     try:
         hls_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(video_id) / resolution
@@ -87,7 +87,7 @@ def get_hls_segments(video_id, resolution='720p'):
 
 def ensure_hls_stream(video_file_path, video_id, resolution='720p'):
     """
-    Stellt sicher, dass ein HLS-Stream existiert, erstellt ihn bei Bedarf
+    Ensures that an HLS stream exists, creates it if needed
     """
     existing_stream = get_hls_segments(video_id, resolution)
     if existing_stream:
@@ -98,7 +98,7 @@ def ensure_hls_stream(video_file_path, video_id, resolution='720p'):
 
 def extract_video_thumbnail(video_file_path, video_id, timestamp='00:00:01'):
     """
-    Extrahiert ein Thumbnail aus dem Video mit FFmpeg
+    Extracts a thumbnail from the video using FFmpeg
     """
     try:
         thumbnail_dir = Path(settings.MEDIA_ROOT) / 'thumbnails'
@@ -135,7 +135,7 @@ def extract_video_thumbnail(video_file_path, video_id, timestamp='00:00:01'):
         else:
             return {
                 'success': False,
-                'error': result.stderr or 'Thumbnail konnte nicht erstellt werden'
+                'error': result.stderr or 'Thumbnail could not be created'
             }
             
     except Exception as e:

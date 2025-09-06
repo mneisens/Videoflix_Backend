@@ -47,7 +47,7 @@ class RegisterView(generics.CreateAPIView):
             
         except Exception as e:
             return Response({
-                'error': f'Registrierungsfehler: {str(e)}'
+                'error': f'Registration error: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class ActivateAccountView(APIView):
@@ -70,7 +70,7 @@ class ActivateAccountView(APIView):
             return redirect_to_login(request)
             
         except Exception as e:
-            return Response({'error': f'Fehler bei der Kontenaktivierung: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': f'Account activation error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
@@ -90,7 +90,7 @@ class LoginView(generics.GenericAPIView):
             return response
             
         except Exception as e:
-            return Response({'error': f'Login-Fehler: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Login error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class LogoutView(generics.GenericAPIView):
     permission_classes = [AllowAny]  
@@ -125,7 +125,7 @@ class TokenRefreshView(generics.GenericAPIView):
         except TokenError:
             return Response({'error': 'Ungültiger Refresh-Token.'}, status=status.HTTP_401_UNAUTHORIZED)
         except Exception as e:
-            return Response({'error': f'Token-Refresh-Fehler: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Token refresh error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PasswordResetView(generics.GenericAPIView):
     serializer_class = PasswordResetSerializer
@@ -138,13 +138,13 @@ class PasswordResetView(generics.GenericAPIView):
         email = serializer.validated_data['email']
         user = User.objects.get(email=email)
         
-        # Token generieren bevor E-Mail gesendet wird
+        # Generate token before sending email
         user.generate_password_reset_token()
         
         try:
             send_password_reset_email(user, request)
         except Exception as e:
-            return Response({'error': 'Fehler beim Versenden der E-Mail. Bitte versuchen Sie es erneut.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': 'Error sending email. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response({'detail': 'An email has been sent to reset your password.'}, status=status.HTTP_200_OK)
 
@@ -170,7 +170,7 @@ class PasswordConfirmView(generics.GenericAPIView):
             return Response({'detail': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
             
         except Exception as e:
-            return Response({'error': f'Passwort-Reset-Fehler: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Password reset error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CSRFTokenView(APIView):
     permission_classes = [AllowAny]

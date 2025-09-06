@@ -6,7 +6,7 @@ from ..models import Video
 
 class VideoSerializer(serializers.ModelSerializer):
     """
-    Serializer für Video-Objekte mit intelligenter Thumbnail-Verarbeitung
+    Serializer for Video objects with intelligent thumbnail processing
     """
     thumbnail_url = serializers.SerializerMethodField()
     
@@ -24,11 +24,11 @@ class VideoSerializer(serializers.ModelSerializer):
     
     def get_thumbnail_url(self, obj):
         """
-        Gibt die Thumbnail-URL mit folgender Priorität zurück:
-        1. Externe Thumbnail-URL (höchste Priorität)
-        2. Manuell hochgeladenes Thumbnail
-        3. Automatisch generiertes Video-Frame
-        4. Kategorie-spezifisches Default-Thumbnail
+        Returns thumbnail URL with the following priority:
+        1. External thumbnail URL (highest priority)
+        2. Manually uploaded thumbnail
+        3. Auto-generated video frame
+        4. Category-specific default thumbnail
         """
         try:
             if obj.thumbnail_url:
@@ -47,7 +47,7 @@ class VideoSerializer(serializers.ModelSerializer):
             return self._get_default_thumbnail_url(obj.category)
     
     def _build_absolute_url(self, relative_url):
-        """Baut eine absolute URL aus einer relativen URL"""
+        """Builds an absolute URL from a relative URL"""
         if relative_url.startswith('http'):
             return relative_url
         
@@ -55,7 +55,7 @@ class VideoSerializer(serializers.ModelSerializer):
         return f"{base_url}{relative_url}"
     
     def _get_auto_thumbnail_url(self, video_id):
-        """Prüft ob ein automatisch generiertes Thumbnail existiert"""
+        """Checks if an auto-generated thumbnail exists"""
         auto_thumbnail_path = f"thumbnails/video_{video_id}_thumbnail.jpg"
         full_path = os.path.join(settings.MEDIA_ROOT, auto_thumbnail_path)
         
@@ -67,7 +67,7 @@ class VideoSerializer(serializers.ModelSerializer):
     
     def _get_default_thumbnail_url(self, category):
         """
-        Gibt eine Standard-Thumbnail-URL basierend auf der Kategorie zurück
+        Returns a default thumbnail URL based on the category
         """
         base_url = getattr(settings, 'SITE_URL', 'http://127.0.0.1:8000')
         

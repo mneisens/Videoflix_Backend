@@ -1,5 +1,5 @@
 """
-Hilfsfunktionen für die Auth-App
+Helper functions for the Auth app
 """
 from rest_framework.response import Response
 from rest_framework import status
@@ -13,7 +13,7 @@ from .models import CustomUser as User
 
 def get_user_by_id(uidb64):
     """
-    Holt einen Benutzer anhand der ID
+    Retrieves a user by ID
     """
     try:
         user_id = int(uidb64)
@@ -24,7 +24,7 @@ def get_user_by_id(uidb64):
 
 def validate_activation_token(user, token):
     """
-    Validiert den Aktivierungstoken
+    Validates the activation token
     """
     if str(user.activation_token) != token:
         return Response({'error': 'Ungültiger Aktivierungstoken.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -37,7 +37,7 @@ def validate_activation_token(user, token):
 
 def activate_user(user):
     """
-    Aktiviert einen Benutzer
+    Activates a user
     """
     user.is_active = True
     user.clear_activation_token()
@@ -46,7 +46,7 @@ def activate_user(user):
 
 def redirect_to_login(request):
     """
-    Erstellt einen Redirect zur Login-Seite
+    Creates a redirect to the login page
     """
     frontend_url = "http://localhost:5500"
     if request.get_host().startswith('127.0.0.1'):
@@ -56,7 +56,7 @@ def redirect_to_login(request):
 
 def authenticate_user(serializer, request):
     """
-    Authentifiziert einen Benutzer
+    Authenticates a user
     """
     serializer.is_valid(raise_exception=True)
     
@@ -75,7 +75,7 @@ def authenticate_user(serializer, request):
 
 def create_login_response(user, refresh):
     """
-    Erstellt eine Login-Response
+    Creates a login response
     """
     from .api.serializers import UserSerializer
     return Response({
@@ -88,7 +88,7 @@ def create_login_response(user, refresh):
 
 def set_auth_cookies(response, refresh):
     """
-    Setzt die Authentifizierungs-Cookies
+    Sets the authentication cookies
     """
     set_access_token_cookie(response, refresh)
     set_refresh_token_cookie(response, refresh)
@@ -96,7 +96,7 @@ def set_auth_cookies(response, refresh):
 
 def set_access_token_cookie(response, refresh):
     """
-    Setzt das Access-Token-Cookie
+    Sets the access token cookie
     """
     response.set_cookie(
         'access_token',
@@ -110,7 +110,7 @@ def set_access_token_cookie(response, refresh):
 
 def set_refresh_token_cookie(response, refresh):
     """
-    Setzt das Refresh-Token-Cookie
+    Sets the refresh token cookie
     """
     response.set_cookie(
         'refresh_token',
@@ -124,7 +124,7 @@ def set_refresh_token_cookie(response, refresh):
 
 def blacklist_refresh_token(request):
     """
-    Blacklistet den Refresh-Token
+    Blacklists the refresh token
     """
     refresh_token = request.COOKIES.get('refresh_token')
     if refresh_token:
@@ -137,14 +137,14 @@ def blacklist_refresh_token(request):
 
 def create_logout_response():
     """
-    Erstellt eine Logout-Response
+    Creates a logout response
     """
     return Response({'detail': 'Logout successful! All tokens will be deleted.'}, status=status.HTTP_200_OK)
 
 
 def clear_auth_cookies(response):
     """
-    Löscht die Authentifizierungs-Cookies
+    Clears the authentication cookies
     """
     response.delete_cookie('access_token')
     response.delete_cookie('refresh_token')
@@ -152,7 +152,7 @@ def clear_auth_cookies(response):
 
 def get_refresh_token(request):
     """
-    Holt den Refresh-Token aus den Cookies
+    Retrieves the refresh token from cookies
     """
     refresh_token = request.COOKIES.get('refresh_token')
     if not refresh_token:
@@ -162,7 +162,7 @@ def get_refresh_token(request):
 
 def create_refresh_response(token):
     """
-    Erstellt eine Token-Refresh-Response
+    Creates a token refresh response
     """
     return Response({
         'detail': 'Token refreshed',
@@ -172,7 +172,7 @@ def create_refresh_response(token):
 
 def validate_password_reset_token(user, token):
     """
-    Validiert den Passwort-Reset-Token
+    Validates the password reset token
     """
     if str(user.password_reset_token) != token:
         return Response({'error': 'Ungültiger Passwort-Reset-Token.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -185,7 +185,7 @@ def validate_password_reset_token(user, token):
 
 def reset_user_password(user, new_password):
     """
-    Setzt ein neues Passwort für den Benutzer
+    Sets a new password for the user
     """
     user.set_password(new_password)
     user.clear_password_reset_token()
