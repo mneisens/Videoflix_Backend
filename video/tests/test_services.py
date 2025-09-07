@@ -84,7 +84,7 @@ class VideoServicesTests(TestCase):
         playlist_path = os.path.join(hls_dir, 'playlist.m3u8')
         with open(playlist_path, 'w') as f:
             f.write("""#EXTM3U
-#EXT-X-VERSION:3
+eEXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
 #EXT-X-MEDIA-SEQUENCE:0
 #EXT-X-PLAYLIST-TYPE:VOD
