@@ -31,20 +31,17 @@ def create_hls_manifest_content(video_id, resolution):
     hls_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(video_id) / resolution
     playlist_file = hls_dir / 'playlist.m3u8'
     
-    # Prüfe ob echte HLS-Segmente existieren
     if playlist_file.exists():
         try:
             with open(playlist_file, 'r') as f:
                 playlist_content = f.read()
             
-            # Ersetze relative Segment-Pfade mit absoluten URLs
             base_url = f"{settings.SITE_URL}/api/video/{video_id}/{resolution}/"
             lines = playlist_content.split('\n')
             updated_lines = []
             
             for line in lines:
                 if line.endswith('.ts'):
-                    # Segment-Datei - erstelle absolute URL
                     updated_lines.append(f"{base_url}{line}")
                 else:
                     updated_lines.append(line)
@@ -53,7 +50,6 @@ def create_hls_manifest_content(video_id, resolution):
         except Exception as e:
             print(f"Fehler beim Lesen der HLS-Playlist: {e}")
     
-    # Fallback: Direkte Video-URL (wie vorher)
     video = Video.objects.get(id=video_id)
     if video.video_file:
         video_url = f"{settings.SITE_URL}{video.video_file.url}"

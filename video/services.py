@@ -7,7 +7,7 @@ from .models import Video
 
 def create_hls_stream(video_file_path, video_id, resolution='720p'):
     """
-    Converts an MP4 file to an HLS stream
+    Converts an MP4 file to an HLS stream with proper resolution scaling
     """
     try:
         hls_output_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(video_id) / resolution
@@ -15,11 +15,23 @@ def create_hls_stream(video_file_path, video_id, resolution='720p'):
         
         hls_output = hls_output_dir / 'playlist.m3u8'
         
+        resolution_settings = {
+            '480p': {'scale': '854:480', 'bitrate': '1000k'},
+            '720p': {'scale': '1280:720', 'bitrate': '2500k'},
+            '1080p': {'scale': '1920:1080', 'bitrate': '5000k'}
+        }
+        
+        settings_for_res = resolution_settings.get(resolution, resolution_settings['720p'])
+        
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', str(video_file_path),
             '-c:v', 'libx264',  
             '-c:a', 'aac',     
+            '-b:v', settings_for_res['bitrate'], 
+            '-maxrate', settings_for_res['bitrate'],
+            '-bufsize', str(int(settings_for_res['bitrate'].replace('k', '')) * 2) + 'k',
+            '-vf', f"scale={settings_for_res['scale']}:force_original_aspect_ratio=decrease,pad={settings_for_res['scale']}:(ow-iw)/2:(oh-ih)/2",  # Scale with padding
             '-f', 'hls',        
             '-hls_time', '10',  
             '-hls_list_size', '0',  

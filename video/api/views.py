@@ -42,7 +42,6 @@ class HLSManifestView(generics.GenericAPIView):
         try:
             video = get_object_or_404(Video, id=movie_id)
             
-            # Verwende die neue Funktion die echte HLS-Segmente nutzt
             manifest_content = create_hls_manifest_content(movie_id, resolution)
             return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
                 
