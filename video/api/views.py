@@ -42,21 +42,12 @@ class HLSManifestView(generics.GenericAPIView):
         try:
             video = get_object_or_404(Video, id=movie_id)
             
-            if video.video_file:
-                from django.conf import settings
-                video_url = f"{settings.SITE_URL}{video.video_file.url}"
-                manifest_content = create_hls_manifest_content(video_url)
-                return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
-            
-            elif video.video_url and not video.video_url.startswith(f'/api/video/{movie_id}'):
-                manifest_content = create_external_video_manifest(video.video_url, resolution)
-                return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
-            
-            else:
-                manifest_content = create_empty_manifest()
-                return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
+            # Verwende die neue Funktion die echte HLS-Segmente nutzt
+            manifest_content = create_hls_manifest_content(movie_id, resolution)
+            return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
                 
         except Exception as e:
+            print(f"HLS Manifest Error: {e}")
             manifest_content = create_empty_manifest()
             return HttpResponse(manifest_content, content_type='application/vnd.apple.mpegurl')
 

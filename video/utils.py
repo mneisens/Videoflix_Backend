@@ -22,11 +22,42 @@ def get_video_list():
         return []
 
 
-def create_hls_manifest_content(video_url):
+def create_hls_manifest_content(video_id, resolution):
     """
-    Creates HLS manifest content for a video URL
+    Creates HLS manifest content using real HLS segments
     """
-    return f"""#EXTM3U
+    from pathlib import Path
+    
+    hls_dir = Path(settings.MEDIA_ROOT) / 'hls' / str(video_id) / resolution
+    playlist_file = hls_dir / 'playlist.m3u8'
+    
+    # Prüfe ob echte HLS-Segmente existieren
+    if playlist_file.exists():
+        try:
+            with open(playlist_file, 'r') as f:
+                playlist_content = f.read()
+            
+            # Ersetze relative Segment-Pfade mit absoluten URLs
+            base_url = f"{settings.SITE_URL}/api/video/{video_id}/{resolution}/"
+            lines = playlist_content.split('\n')
+            updated_lines = []
+            
+            for line in lines:
+                if line.endswith('.ts'):
+                    # Segment-Datei - erstelle absolute URL
+                    updated_lines.append(f"{base_url}{line}")
+                else:
+                    updated_lines.append(line)
+            
+            return '\n'.join(updated_lines)
+        except Exception as e:
+            print(f"Fehler beim Lesen der HLS-Playlist: {e}")
+    
+    # Fallback: Direkte Video-URL (wie vorher)
+    video = Video.objects.get(id=video_id)
+    if video.video_file:
+        video_url = f"{settings.SITE_URL}{video.video_file.url}"
+        return f"""#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
 #EXT-X-MEDIA-SEQUENCE:0
@@ -35,6 +66,8 @@ def create_hls_manifest_content(video_url):
 {video_url}
 #EXT-X-ENDLIST
 """
+    
+    return create_empty_manifest()
 
 
 def create_external_video_manifest(video_url, resolution):
